@@ -1,0 +1,24 @@
+{
+  "name": "grunt-wpt-page",
+  "description": "Keep tracking webpagetest score",
+  "version": "0.0.1",
+  "keywords": [],
+  "dependencies": {
+    "moment/moment": "*",
+    "yyx990803/vue": "*",
+    "components/jquery": "*",
+    "components/bootstrap": "*",
+    "lodash/lodash": "*"
+  },
+  "development": {},
+  "license": "MIT",
+  "scripts": [
+    "index.js"
+  ],
+  "templates": [
+    "index.html"
+  ],
+  "styles": [
+    "grunt-wpt-page.css"
+  ]
+}
