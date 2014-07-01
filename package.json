@@ -1,0 +1,43 @@
+{
+  "name": "grunt-wpt-page",
+  "description": "Keep tracking webpagetest score",
+  "homepage": "https://github.com/sideroad/grunt-wpt-page",
+  "author": {
+    "name": "sideroad",
+    "email": "sideroad.jp@gmail.com",
+    "url": "http://sideroad.secret.jp/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/sideroad/grunt-wpt-page.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sideroad/grunt-wpt-page/issues"
+  },
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/sideroad/grunt-wpt-page/blob/master/LICENSE-MIT"
+    }
+  ],
+  "main": "Gruntfile.js",
+  "engines": {
+    "node": ">= 0.8.0"
+  },
+  "scripts": {
+    "test": "grunt test"
+  },
+  "devDependencies": {
+    "grunt": "~0.4.0",
+    "grunt-component-build": "^0.5.0",
+    "grunt-contrib-clean": "^0.5.0",
+    "grunt-contrib-jshint": "~0.1.1"
+  },
+  "peerDependencies": {
+    "grunt": "~0.4.0"
+  },
+  "keywords": [
+    "gruntplugin"
+  ],
+  "dependencies": {}
+}

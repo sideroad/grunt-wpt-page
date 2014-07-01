@@ -1,4 +1,7 @@
+/*global Morris: true */
+
 (function( Morris ){
+    'use strict';
 
     var $ = require('jquery'),
         _ = require('lodash'),
@@ -77,7 +80,7 @@
             },
             filters: {
                 convertToDate: function(time){
-                    return moment(time*1000).format('LLL')
+                    return moment(time*1000).format('LLL');
                 },
                 totalBytes: function(data){
                     var total = _.reduce(data, function(memo, val, key){
