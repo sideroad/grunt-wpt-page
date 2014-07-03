@@ -26,7 +26,7 @@
 						<option v-repeat="locations" value="{{$key}}" >{{$value}}</option>
 					</select>
 			  		<h2>URL</h2>
-					<select id="urls" class="form-control" v-model="url" v-on="change: render" >
+					<select id="urls" class="form-control" v-model="url" v-on="change: renderGraph" >
 						<option v-repeat="urls" value="{{$key}}" >{{$key}}</option>
 					</select>
 
