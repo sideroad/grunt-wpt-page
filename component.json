@@ -8,7 +8,9 @@
     "yyx990803/vue": "*",
     "components/jquery": "*",
     "components/bootstrap": "*",
-    "lodash/lodash": "*"
+    "lodash/lodash": "*",
+    "visionmedia/superagent": "*",
+    "microjs/q": "*"
   },
   "development": {},
   "license": "MIT",

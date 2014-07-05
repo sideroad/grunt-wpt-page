@@ -1,3 +1,21 @@
-.sidebar .affix select{
-	width: 68%;
+
+body {
+  position: relative;
 }
+.sidebar .affix{
+	position: static;
+}
+@media (min-width: 992px) {
+	.sidebar .affix{
+		width: 132px;
+		position: fixed;
+	}
+}
+
+@media (min-width: 1200px) {
+	.sidebar .affix{
+		width: 165px;
+		position: fixed;
+	}
+}
+
