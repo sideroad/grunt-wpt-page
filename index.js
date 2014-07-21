@@ -61,15 +61,19 @@
                 that.renderGraph();
             });
 
-            request.get('tests/results.json', function(res){
-                that.results = res.body;
-            });
+            request.get('tests/results.json')
+                   .set('Content-Type', 'application/json')
+                   .end(function(res){
+                        that.results = res.body;
+                   });
 
-            request.get('tests/locations.json', function(res){
-                that.locations = res.body;
-                that.location = _.chain(that.locations).keys().first().value();
-                that.url = _.chain(that.urls).keys().first().value();
-            });
+            request.get('tests/locations.json')
+                   .set('Content-Type', 'application/json')
+                   .end(function(res){
+                        that.locations = res.body;
+                        that.location = _.chain(that.locations).keys().first().value();
+                        that.url = _.chain(that.urls).keys().first().value();
+                    });
 
         },
         computed: {
@@ -113,9 +117,11 @@
                 _(this.testIds).each(function(testId){
                     var dfd = Q.defer();
 
-                    request.get('tests/'+testId+'.json', function(res){
-                        dfd.resolve(res.body);
-                    });
+                    request.get('tests/'+testId+'.json')
+                           .set('Content-Type', 'application/json')
+                           .end(function(res){
+                               dfd.resolve(res.body);
+                           });
                     requests.push(dfd.promise);
                 });
 
