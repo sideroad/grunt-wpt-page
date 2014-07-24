@@ -30737,13 +30737,13 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
                     }
                 },
                 contents: {
-                    'html': 'HTML',
-                    'css': 'CSS',
-                    'image': 'Image',
-                    'flash': 'Flash',
-                    'js': 'JavaScript',
-                    'font': 'Font',
-                    'other': 'Other'
+                    html: 'HTML',
+                    css: 'CSS',
+                    image: 'Image',
+                    flash: 'Flash',
+                    js: 'JavaScript',
+                    font: 'Font',
+                    other: 'Other'
                 }
             }
         },
@@ -30758,6 +30758,8 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
                    .set('Content-Type', 'application/json')
                    .end(function(res){
                         that.results = res.body;
+                        var aaa = that.urls;
+
                    });
 
             request.get('tests/locations.json')
@@ -30766,6 +30768,7 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
                         that.locations = res.body;
                         that.location = _.chain(that.locations).keys().first().value();
                         that.url = _.chain(that.urls).keys().first().value();
+                        var aaa = that.urls;
                     });
 
         },
@@ -30775,6 +30778,11 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
             },
             testIds: function(){
                 return this.urls[this.url];
+            },
+            allTestIds: function(){
+                return _.chain(this.urls).map(function(val, key){ 
+                    return val;
+                }).flatten().value();
             }
         },
         filters: {
@@ -30803,22 +30811,66 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
             }
         },
         methods: {
-            renderGraph: function(){
+            getTests: function(testIds){
                 var requests = [],
                     that = this;
 
                 _(this.testIds).each(function(testId){
-                    var dfd = Q.defer();
+                   var dfd = Q.defer();
 
                     request.get('tests/'+testId+'.json')
                            .set('Content-Type', 'application/json')
                            .end(function(res){
-                               dfd.resolve(res.body);
+                                var data = res.body.response.data,
+                                    isExists = function(source, target){
+                                        return _.every(source, function(val){
+                                            return _.contains(target, val);
+                                        });
+                                    };
+
+                                if(isExists( _.keys(that.labels.responseTime.average), _.keys(data.average.firstView)) &&
+                                   isExists( _.keys(that.labels.responseTime.average), _.keys(data.average.repeatView)) &&
+                                   isExists( _.keys(that.labels.responseTime.median), _.keys(data.median.firstView)) &&
+                                   isExists( _.keys(that.labels.responseTime.median), _.keys(data.median.repeatView)) &&
+                                   isExists( _.keys(that.labels.contents), _.keys(data.median.firstView.breakdown)) &&
+                                   isExists( _.keys(that.labels.contents), _.keys(data.median.repeatView.breakdown))){
+                                    dfd.resolve(res.body);
+                                } else {
+                                    dfd.resolve();
+                                }
                            });
                     requests.push(dfd.promise);
                 });
 
-                Q.all(requests).then(function(tests){
+                return Q.all(requests);
+            },
+            getValidTests: function(tests){
+                tests
+
+            },
+            renderComparizonGraph: function(){
+                var that = this;
+
+                this.getTests(this.testIds).done(function(tests){
+                    tests = _.compact(tests);
+
+                    that.$set('tests', tests);
+
+                    that.renderResponseTimeGraph( tests, 'average', 'first' );
+                    that.renderResponseTimeGraph( tests, 'median', 'first' );
+                    that.renderResponseTimeGraph( tests, 'average', 'repeat' );
+                    that.renderResponseTimeGraph( tests, 'median', 'repeat' );
+                    that.renderContentsSizeGraph( tests, 'first' );
+                    that.renderContentsSizeGraph( tests, 'repeat' );
+                    that.renderContentsRequestsGraph( tests, 'first' );
+                    that.renderContentsRequestsGraph( tests, 'repeat' );
+                });
+            },
+            renderGraph: function(){
+                var that = this;
+
+                this.getTests(this.testIds).done(function(tests){
+                    tests = _.compact(tests);
 
                     that.$set('tests', tests);
 
@@ -30837,7 +30889,7 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
                 renderMorris({
                     data: _.map(tests, function(test){
                         var obj = test.response.data[type][view+'View'] || {};
-                        obj.date = new Date( test.info.completed*1000 ).getTime();
+                        obj.date = new Date( test.response.data.completed ).getTime();
                         return obj;
                     }),
                     keys: _(this.labels.responseTime[type]).keys().value(),
@@ -30857,7 +30909,7 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0).toFixed(1);
-                        obj.date = new Date( test.info.completed*1000 ).getTime();
+                        obj.date = new Date( test.response.data.completed ).getTime();
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
@@ -30876,7 +30928,7 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0);
-                        obj.date = new Date( test.info.completed*1000 ).getTime();
+                        obj.date = new Date( test.response.data.completed ).getTime();
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
@@ -30906,7 +30958,7 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
 
 
 require.register("grunt-wpt-page/index.html", function(exports, require, module){
-module.exports = '<!DOCTYPE html>\n<html>\n<head>\n    <link rel=\'stylesheet\' href=\'//cdn.oesmith.co.uk/morris-0.4.3.min.css\'>\n    <link rel=\'stylesheet\' href=\'build/build.css\'>\n\n    <title>Grunt WebPageTest</title>\n</head>\n<body data-spy="scroll" data-target=".nav-graph">\n\n    <div class="container">\n        <nav class="navbar navbar-default" role="navigation">\n            <!-- Brand and toggle get grouped for better mobile display -->\n            <div class="navbar-header">\n                <a class="navbar-brand" href="#">Grunt WebPageTest</a>\n            </div>\n        </nav>\n    </div>\n\n    <div id="app" class="container">\n        <div class="row">\n            <div class="col-md-2 sidebar" >\n                <div data-spy="affix" data-offset-top="60" class="nav-graph">\n                    <h2>Location</h2>\n                    <select id="locations" class="form-control" v-model="location" >\n                        <option v-repeat="locations" value="{{$key}}" >{{$value}}</option>\n                    </select>\n\n                    <h2>URL</h2>\n                    <select id="urls" class="form-control" v-model="url" >\n                        <option v-repeat="urls" value="{{$key}}" >{{$key}}</option>\n                    </select>\n\n                    <h2>Results</h2>\n                    <ul class="nav nav-pills nav-stacked">\n                        <li><a href="#responseTime">Response Time</a></li>\n                        <li><a href="#contentsSize">Contents Size</a></li>\n                        <li><a href="#contentsRequests">Contents Requests</a></li>\n                    </ul>\n                </div>\n            </div>\n            <div class="col-md-10">\n\n                <h2 id="responseTime" >Response Time</h2>\n                <h3>FirstView</h3>\n                <h4>Average</h4>\n                <div id="firstAverage" class="graphs"></div>\n\n                <h4>Median</h4>\n                <div id="firstMedian" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <h4>Average</h4>\n                <div id="repeatAverage" class="graphs"></div>\n\n                <h4>Median</h4>\n                <div id="repeatMedian" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <h4>Average</h4>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="2">FirstView</th>\n                            <th colspan="2">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat="labels.responseTime.average">{{$value}}</th>\n                            <th v-repeat="labels.responseTime.average">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="averageTable">\n                        <tr v-repeat="tests" >\n                            <td>{{info.completed | convertToDate }}</td>\n                            <td><a v-attr="href: response.data.summary">{{info.id}}</a></td>\n                            <td v-repeat="labels.responseTime.average">{{response.data.average.firstView[$key] | ms}}</td>\n                            <td v-repeat="labels.responseTime.average">{{response.data.average.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n                <h4>Median</h4>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="6">FirstView</th>\n                            <th colspan="6">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat="labels.responseTime.median">{{$value}}</th>\n                            <th v-repeat="labels.responseTime.median">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="medianTable">\n                        <tr v-repeat="tests">\n                            <td>{{info.completed | convertToDate}}</td>\n                            <td><a v-attr="href: response.data.summary">{{info.id}}</a></td>\n                            <td v-repeat="labels.responseTime.median">{{response.data.median.firstView[$key] | ms}}</td>\n                            <td v-repeat="labels.responseTime.median">{{response.data.median.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n\n                <h2 id="contentsSize" >Contents Size</h2>\n                <h3>FirstView</h3>\n                <div id="firstContentsSize" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <div id="repeatContentsSize" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="8">FirstView</th>\n                            <th colspan="8">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="contentsSizeTable">\n                        <tr v-repeat="tests" >\n                            <td>{{info.completed | convertToDate}}</td>\n                            <td><a v-attr="href: response.data.summary">{{info.id}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].bytes | KB}}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].bytes | KB}}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n                <h2 id="contentsRequests" >Contents Requests</h2>\n                <h3>FirstView</h3>\n                <div id="firstContentsRequests" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <div id="repeatContentsRequests" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="8">FirstView</th>\n                            <th colspan="8">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="contentsRequestsTable">\n                        <tr v-repeat="tests" >\n                            <td>{{info.completed | convertToDate}}</td>\n                            <td><a v-attr="href: response.data.summary">{{info.id}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalRequests }}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].requests }}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalRequests }}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].requests }}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n            </div>\n        </div>\n    </div>\n\n    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>\n    <script src="//cdnjs.cloudflare.com/ajax/libs/raphael/2.1.0/raphael-min.js"></script>\n    <script src="//cdn.oesmith.co.uk/morris-0.5.1.min.js"></script>\n    <script src=\'build/build.js\'></script>\n    <script>\n        require(\'grunt-wpt-page\')\n    </script>\n</body>\n</html>';
+module.exports = '<!DOCTYPE html>\n<html>\n<head>\n    <link rel=\'stylesheet\' href=\'//cdn.oesmith.co.uk/morris-0.4.3.min.css\'>\n    <link rel=\'stylesheet\' href=\'build/build.css\'>\n\n    <title>Grunt WebPageTest</title>\n</head>\n<body data-spy="scroll" data-target=".nav-graph">\n\n    <div class="container">\n        <nav class="navbar navbar-default" role="navigation">\n            <!-- Brand and toggle get grouped for better mobile display -->\n            <div class="navbar-header">\n                <a class="navbar-brand" href="#">Grunt WebPageTest</a>\n            </div>\n        </nav>\n    </div>\n\n    <div id="app" class="container">\n        <div class="row">\n            <div class="col-md-2 sidebar" >\n                <div data-spy="affix" data-offset-top="60" class="nav-graph">\n                    <h2>Location</h2>\n                    <select id="locations" class="form-control" v-model="location" >\n                        <option v-repeat="locations" value="{{$key}}" >{{$value}}</option>\n                    </select>\n\n                    <h2>URL</h2>\n                    <select id="urls" class="form-control" v-model="url" >\n                        <option v-repeat="urls" value="{{$key}}" >{{$key}}</option>\n                    </select>\n\n                    <h2>Results</h2>\n                    <ul class="nav nav-pills nav-stacked">\n                        <li><a href="#responseTime">Response Time</a></li>\n                        <li><a href="#contentsSize">Contents Size</a></li>\n                        <li><a href="#contentsRequests">Contents Requests</a></li>\n                    </ul>\n                </div>\n            </div>\n            <div class="col-md-10">\n\n                <h2 id="responseTime" >Response Time</h2>\n                <h3>FirstView</h3>\n                <h4>Average</h4>\n                <div id="firstAverage" class="graphs"></div>\n\n                <h4>Median</h4>\n                <div id="firstMedian" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <h4>Average</h4>\n                <div id="repeatAverage" class="graphs"></div>\n\n                <h4>Median</h4>\n                <div id="repeatMedian" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <h4>Average</h4>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="2">FirstView</th>\n                            <th colspan="2">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat="labels.responseTime.average">{{$value}}</th>\n                            <th v-repeat="labels.responseTime.average">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="averageTable">\n                        <tr v-repeat="tests" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td v-repeat="labels.responseTime.average">{{response.data.average.firstView[$key] | ms}}</td>\n                            <td v-repeat="labels.responseTime.average">{{response.data.average.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n                <h4>Median</h4>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="6">FirstView</th>\n                            <th colspan="6">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat="labels.responseTime.median">{{$value}}</th>\n                            <th v-repeat="labels.responseTime.median">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="medianTable">\n                        <tr v-repeat="tests">\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td v-repeat="labels.responseTime.median">{{response.data.median.firstView[$key] | ms}}</td>\n                            <td v-repeat="labels.responseTime.median">{{response.data.median.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n\n                <h2 id="contentsSize" >Contents Size</h2>\n                <h3>FirstView</h3>\n                <div id="firstContentsSize" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <div id="repeatContentsSize" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="8">FirstView</th>\n                            <th colspan="8">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="contentsSizeTable">\n                        <tr v-repeat="tests" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].bytes | KB}}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].bytes | KB}}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n                <h2 id="contentsRequests" >Contents Requests</h2>\n                <h3>FirstView</h3>\n                <div id="firstContentsRequests" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <div id="repeatContentsRequests" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="8">FirstView</th>\n                            <th colspan="8">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="contentsRequestsTable">\n                        <tr v-repeat="tests" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalRequests }}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].requests }}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalRequests }}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].requests }}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n            </div>\n        </div>\n    </div>\n\n    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>\n    <script src="//cdnjs.cloudflare.com/ajax/libs/raphael/2.1.0/raphael-min.js"></script>\n    <script src="//cdn.oesmith.co.uk/morris-0.5.1.min.js"></script>\n    <script src=\'build/build.js\'></script>\n    <script>\n        require(\'grunt-wpt-page\')\n    </script>\n</body>\n</html>';
 });
 require.alias("moment-moment/moment.js", "grunt-wpt-page/deps/moment/moment.js");
 require.alias("moment-moment/moment.js", "grunt-wpt-page/deps/moment/index.js");

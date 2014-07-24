@@ -73,8 +73,8 @@
                     </thead>
                     <tbody id="averageTable">
                         <tr v-repeat="tests" >
-                            <td>{{info.completed | convertToDate }}</td>
-                            <td><a v-attr="href: response.data.summary">{{info.id}}</a></td>
+                            <td>{{response.data.completed}}</td>
+                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
                             <td v-repeat="labels.responseTime.average">{{response.data.average.firstView[$key] | ms}}</td>
                             <td v-repeat="labels.responseTime.average">{{response.data.average.repeatView[$key] | ms}}</td>
                         </tr>
@@ -97,8 +97,8 @@
                     </thead>
                     <tbody id="medianTable">
                         <tr v-repeat="tests">
-                            <td>{{info.completed | convertToDate}}</td>
-                            <td><a v-attr="href: response.data.summary">{{info.id}}</a></td>
+                            <td>{{response.data.completed}}</td>
+                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
                             <td v-repeat="labels.responseTime.median">{{response.data.median.firstView[$key] | ms}}</td>
                             <td v-repeat="labels.responseTime.median">{{response.data.median.repeatView[$key] | ms}}</td>
                         </tr>
@@ -131,8 +131,8 @@
                     </thead>
                     <tbody id="contentsSizeTable">
                         <tr v-repeat="tests" >
-                            <td>{{info.completed | convertToDate}}</td>
-                            <td><a v-attr="href: response.data.summary">{{info.id}}</a></td>
+                            <td>{{response.data.completed}}</td>
+                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
                             <td>{{response.data.median.firstView.breakdown | totalBytes | KB}}</td>
                             <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].bytes | KB}}</td>
                             <td>{{response.data.median.repeatView.breakdown | totalBytes | KB}}</td>
@@ -166,8 +166,8 @@
                     </thead>
                     <tbody id="contentsRequestsTable">
                         <tr v-repeat="tests" >
-                            <td>{{info.completed | convertToDate}}</td>
-                            <td><a v-attr="href: response.data.summary">{{info.id}}</a></td>
+                            <td>{{response.data.completed}}</td>
+                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
                             <td>{{response.data.median.firstView.breakdown | totalRequests }}</td>
                             <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].requests }}</td>
                             <td>{{response.data.median.repeatView.breakdown | totalRequests }}</td>

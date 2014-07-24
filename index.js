@@ -44,13 +44,13 @@
                     }
                 },
                 contents: {
-                    'html': 'HTML',
-                    'css': 'CSS',
-                    'image': 'Image',
-                    'flash': 'Flash',
-                    'js': 'JavaScript',
-                    'font': 'Font',
-                    'other': 'Other'
+                    html: 'HTML',
+                    css: 'CSS',
+                    image: 'Image',
+                    flash: 'Flash',
+                    js: 'JavaScript',
+                    font: 'Font',
+                    other: 'Other'
                 }
             }
         },
@@ -65,6 +65,8 @@
                    .set('Content-Type', 'application/json')
                    .end(function(res){
                         that.results = res.body;
+                        var aaa = that.urls;
+
                    });
 
             request.get('tests/locations.json')
@@ -73,6 +75,7 @@
                         that.locations = res.body;
                         that.location = _.chain(that.locations).keys().first().value();
                         that.url = _.chain(that.urls).keys().first().value();
+                        var aaa = that.urls;
                     });
 
         },
@@ -82,6 +85,11 @@
             },
             testIds: function(){
                 return this.urls[this.url];
+            },
+            allTestIds: function(){
+                return _.chain(this.urls).map(function(val, key){ 
+                    return val;
+                }).flatten().value();
             }
         },
         filters: {
@@ -110,22 +118,66 @@
             }
         },
         methods: {
-            renderGraph: function(){
+            getTests: function(testIds){
                 var requests = [],
                     that = this;
 
                 _(this.testIds).each(function(testId){
-                    var dfd = Q.defer();
+                   var dfd = Q.defer();
 
                     request.get('tests/'+testId+'.json')
                            .set('Content-Type', 'application/json')
                            .end(function(res){
-                               dfd.resolve(res.body);
+                                var data = res.body.response.data,
+                                    isExists = function(source, target){
+                                        return _.every(source, function(val){
+                                            return _.contains(target, val);
+                                        });
+                                    };
+
+                                if(isExists( _.keys(that.labels.responseTime.average), _.keys(data.average.firstView)) &&
+                                   isExists( _.keys(that.labels.responseTime.average), _.keys(data.average.repeatView)) &&
+                                   isExists( _.keys(that.labels.responseTime.median), _.keys(data.median.firstView)) &&
+                                   isExists( _.keys(that.labels.responseTime.median), _.keys(data.median.repeatView)) &&
+                                   isExists( _.keys(that.labels.contents), _.keys(data.median.firstView.breakdown)) &&
+                                   isExists( _.keys(that.labels.contents), _.keys(data.median.repeatView.breakdown))){
+                                    dfd.resolve(res.body);
+                                } else {
+                                    dfd.resolve();
+                                }
                            });
                     requests.push(dfd.promise);
                 });
 
-                Q.all(requests).then(function(tests){
+                return Q.all(requests);
+            },
+            getValidTests: function(tests){
+                tests
+
+            },
+            renderComparizonGraph: function(){
+                var that = this;
+
+                this.getTests(this.testIds).done(function(tests){
+                    tests = _.compact(tests);
+
+                    that.$set('tests', tests);
+
+                    that.renderResponseTimeGraph( tests, 'average', 'first' );
+                    that.renderResponseTimeGraph( tests, 'median', 'first' );
+                    that.renderResponseTimeGraph( tests, 'average', 'repeat' );
+                    that.renderResponseTimeGraph( tests, 'median', 'repeat' );
+                    that.renderContentsSizeGraph( tests, 'first' );
+                    that.renderContentsSizeGraph( tests, 'repeat' );
+                    that.renderContentsRequestsGraph( tests, 'first' );
+                    that.renderContentsRequestsGraph( tests, 'repeat' );
+                });
+            },
+            renderGraph: function(){
+                var that = this;
+
+                this.getTests(this.testIds).done(function(tests){
+                    tests = _.compact(tests);
 
                     that.$set('tests', tests);
 
@@ -144,7 +196,7 @@
                 renderMorris({
                     data: _.map(tests, function(test){
                         var obj = test.response.data[type][view+'View'] || {};
-                        obj.date = new Date( test.info.completed*1000 ).getTime();
+                        obj.date = new Date( test.response.data.completed ).getTime();
                         return obj;
                     }),
                     keys: _(this.labels.responseTime[type]).keys().value(),
@@ -164,7 +216,7 @@
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0).toFixed(1);
-                        obj.date = new Date( test.info.completed*1000 ).getTime();
+                        obj.date = new Date( test.response.data.completed ).getTime();
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
@@ -183,7 +235,7 @@
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0);
-                        obj.date = new Date( test.info.completed*1000 ).getTime();
+                        obj.date = new Date( test.response.data.completed ).getTime();
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
