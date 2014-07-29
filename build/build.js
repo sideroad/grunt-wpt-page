@@ -30903,7 +30903,7 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
                         var obj = {};
                         var tmp = 0;
                         _.each(test.response.data.median[view+'View'].breakdown, function(val, key){
-                            obj[key] = ( val.bytes / 1000).toFixed(1);
+                            obj[key] = ( (val.bytes||0) / 1000).toFixed(1);
                             tmp += Number(obj[key]);
                         });
                         obj.total = _.reduce(obj, function(memo, val, key){
@@ -30923,7 +30923,7 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
                         var obj = {};
                         var tmp = 0;
                         _.each(test.response.data.median[view+'View'].breakdown, function(val, key){
-                            obj[key] = Number(val.requests);
+                            obj[key] = Number(val.requests||0);
                         });
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
