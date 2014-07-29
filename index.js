@@ -60,13 +60,14 @@
             this.$watch('url', function(){
                 that.renderGraph();
             });
+            this.$watch('results', function(){
+                that.renderGraph();
+            });
 
             request.get('tests/results.json')
                    .set('Content-Type', 'application/json')
                    .end(function(res){
                         that.results = res.body;
-                        var aaa = that.urls;
-
                    });
 
             request.get('tests/locations.json')
@@ -75,7 +76,6 @@
                         that.locations = res.body;
                         that.location = _.chain(that.locations).keys().first().value();
                         that.url = _.chain(that.urls).keys().first().value();
-                        var aaa = that.urls;
                     });
 
         },
