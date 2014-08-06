@@ -151,10 +151,6 @@
 
                 return Q.all(requests);
             },
-            getValidTests: function(tests){
-                tests
-
-            },
             renderComparizonGraph: function(){
                 var that = this;
 

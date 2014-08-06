@@ -21,6 +21,7 @@
     "index.html"
   ],
   "styles": [
+    "morris-0.4.3.min.css",
     "components/components-bootstrap/css/bootstrap.min.css",
     "components/components-bootstrap/css/bootstrap-theme.min.css",
     "grunt-wpt-page.css"

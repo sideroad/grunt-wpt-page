@@ -201,19 +201,18 @@ require.relative = function(parent) {
 };
 require.register("moment-moment/moment.js", function(exports, require, module){
 //! moment.js
-//! version : 2.7.0
+//! version : 2.8.1
 //! authors : Tim Wood, Iskren Chernev, Moment.js contributors
 //! license : MIT
 //! momentjs.com
 
 (function (undefined) {
-
     /************************************
         Constants
     ************************************/
 
     var moment,
-        VERSION = "2.7.0",
+        VERSION = '2.8.1',
         // the global-scope this is NOT the global object in Node.js
         globalScope = typeof global !== 'undefined' ? global : this,
         oldGlobalMoment,
@@ -228,22 +227,11 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         SECOND = 5,
         MILLISECOND = 6,
 
-        // internal storage for language config files
-        languages = {},
+        // internal storage for locale config files
+        locales = {},
 
-        // moment internal properties
-        momentProperties = {
-            _isAMomentObject: null,
-            _i : null,
-            _f : null,
-            _l : null,
-            _strict : null,
-            _tzm : null,
-            _isUTC : null,
-            _offset : null,  // optional. Combine with _isUTC
-            _pf : null,
-            _lang : null  // optional
-        },
+        // extra moment internal properties (plugins register props here)
+        momentProperties = [],
 
         // check for nodeJS
         hasModule = (typeof module !== 'undefined' && module.exports),
@@ -349,12 +337,11 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
         // default relative time thresholds
         relativeTimeThresholds = {
-          s: 45,   //seconds to minutes
-          m: 45,   //minutes to hours
-          h: 22,   //hours to days
-          dd: 25,  //days to month (month == 1)
-          dm: 45,  //days to months (months > 1)
-          dy: 345  //days to year
+            s: 45,  // seconds to minute
+            m: 45,  // minutes to hour
+            h: 22,  // hours to day
+            d: 26,  // days to month
+            M: 11   // months to year
         },
 
         // tokens to ordinalize and pad
@@ -366,10 +353,10 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                 return this.month() + 1;
             },
             MMM  : function (format) {
-                return this.lang().monthsShort(this, format);
+                return this.localeData().monthsShort(this, format);
             },
             MMMM : function (format) {
-                return this.lang().months(this, format);
+                return this.localeData().months(this, format);
             },
             D    : function () {
                 return this.date();
@@ -381,13 +368,13 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                 return this.day();
             },
             dd   : function (format) {
-                return this.lang().weekdaysMin(this, format);
+                return this.localeData().weekdaysMin(this, format);
             },
             ddd  : function (format) {
-                return this.lang().weekdaysShort(this, format);
+                return this.localeData().weekdaysShort(this, format);
             },
             dddd : function (format) {
-                return this.lang().weekdays(this, format);
+                return this.localeData().weekdays(this, format);
             },
             w    : function () {
                 return this.week();
@@ -433,10 +420,10 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                 return this.isoWeekday();
             },
             a    : function () {
-                return this.lang().meridiem(this.hours(), this.minutes(), true);
+                return this.localeData().meridiem(this.hours(), this.minutes(), true);
             },
             A    : function () {
-                return this.lang().meridiem(this.hours(), this.minutes(), false);
+                return this.localeData().meridiem(this.hours(), this.minutes(), false);
             },
             H    : function () {
                 return this.hours();
@@ -464,19 +451,19 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             },
             Z    : function () {
                 var a = -this.zone(),
-                    b = "+";
+                    b = '+';
                 if (a < 0) {
                     a = -a;
-                    b = "-";
+                    b = '-';
                 }
-                return b + leftZeroFill(toInt(a / 60), 2) + ":" + leftZeroFill(toInt(a) % 60, 2);
+                return b + leftZeroFill(toInt(a / 60), 2) + ':' + leftZeroFill(toInt(a) % 60, 2);
             },
             ZZ   : function () {
                 var a = -this.zone(),
-                    b = "+";
+                    b = '+';
                 if (a < 0) {
                     a = -a;
-                    b = "-";
+                    b = '-';
                 }
                 return b + leftZeroFill(toInt(a / 60), 2) + leftZeroFill(toInt(a) % 60, 2);
             },
@@ -494,6 +481,8 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             }
         },
 
+        deprecations = {},
+
         lists = ['months', 'monthsShort', 'weekdays', 'weekdaysShort', 'weekdaysMin'];
 
     // Pick the first defined of two or three arguments. dfl comes from
@@ -502,7 +491,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         switch (arguments.length) {
             case 2: return a != null ? a : b;
             case 3: return a != null ? a : b != null ? b : c;
-            default: throw new Error("Implement me");
+            default: throw new Error('Implement me');
         }
     }
 
@@ -523,21 +512,29 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         };
     }
 
+    function printMsg(msg) {
+        if (moment.suppressDeprecationWarnings === false &&
+                typeof console !== 'undefined' && console.warn) {
+            console.warn("Deprecation warning: " + msg);
+        }
+    }
+
     function deprecate(msg, fn) {
         var firstTime = true;
-        function printMsg() {
-            if (moment.suppressDeprecationWarnings === false &&
-                    typeof console !== 'undefined' && console.warn) {
-                console.warn("Deprecation warning: " + msg);
-            }
-        }
         return extend(function () {
             if (firstTime) {
-                printMsg();
+                printMsg(msg);
                 firstTime = false;
             }
             return fn.apply(this, arguments);
         }, fn);
+    }
+
+    function deprecateSimple(name, msg) {
+        if (!deprecations[name]) {
+            printMsg(msg);
+            deprecations[name] = true;
+        }
     }
 
     function padToken(func, count) {
@@ -547,7 +544,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     }
     function ordinalizeToken(func, period) {
         return function (a) {
-            return this.lang().ordinal(func.call(this, a), period);
+            return this.localeData().ordinal(func.call(this, a), period);
         };
     }
 
@@ -566,14 +563,16 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         Constructors
     ************************************/
 
-    function Language() {
-
+    function Locale() {
     }
 
     // Moment prototype object
-    function Moment(config) {
-        checkOverflow(config);
-        extend(this, config);
+    function Moment(config, skipOverflow) {
+        if (skipOverflow !== false) {
+            checkOverflow(config);
+        }
+        copyConfig(this, config);
+        this._d = new Date(+config._d);
     }
 
     // Duration Constructor
@@ -607,6 +606,8 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
         this._data = {};
 
+        this._locale = moment.localeData();
+
         this._bubble();
     }
 
@@ -622,26 +623,62 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             }
         }
 
-        if (b.hasOwnProperty("toString")) {
+        if (b.hasOwnProperty('toString')) {
             a.toString = b.toString;
         }
 
-        if (b.hasOwnProperty("valueOf")) {
+        if (b.hasOwnProperty('valueOf')) {
             a.valueOf = b.valueOf;
         }
 
         return a;
     }
 
-    function cloneMoment(m) {
-        var result = {}, i;
-        for (i in m) {
-            if (m.hasOwnProperty(i) && momentProperties.hasOwnProperty(i)) {
-                result[i] = m[i];
+    function copyConfig(to, from) {
+        var i, prop, val;
+
+        if (typeof from._isAMomentObject !== 'undefined') {
+            to._isAMomentObject = from._isAMomentObject;
+        }
+        if (typeof from._i !== 'undefined') {
+            to._i = from._i;
+        }
+        if (typeof from._f !== 'undefined') {
+            to._f = from._f;
+        }
+        if (typeof from._l !== 'undefined') {
+            to._l = from._l;
+        }
+        if (typeof from._strict !== 'undefined') {
+            to._strict = from._strict;
+        }
+        if (typeof from._tzm !== 'undefined') {
+            to._tzm = from._tzm;
+        }
+        if (typeof from._isUTC !== 'undefined') {
+            to._isUTC = from._isUTC;
+        }
+        if (typeof from._offset !== 'undefined') {
+            to._offset = from._offset;
+        }
+        if (typeof from._pf !== 'undefined') {
+            to._pf = from._pf;
+        }
+        if (typeof from._locale !== 'undefined') {
+            to._locale = from._locale;
+        }
+
+        if (momentProperties.length > 0) {
+            for (i in momentProperties) {
+                prop = momentProperties[i];
+                val = from[prop];
+                if (typeof val !== 'undefined') {
+                    to[prop] = val;
+                }
             }
         }
 
-        return result;
+        return to;
     }
 
     function absRound(number) {
@@ -664,7 +701,51 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         return (sign ? (forceSign ? '+' : '') : '-') + output;
     }
 
-    // helper function for _.addTime and _.subtractTime
+    function positiveMomentsDifference(base, other) {
+        var res = {milliseconds: 0, months: 0};
+
+        res.months = other.month() - base.month() +
+            (other.year() - base.year()) * 12;
+        if (base.clone().add(res.months, 'M').isAfter(other)) {
+            --res.months;
+        }
+
+        res.milliseconds = +other - +(base.clone().add(res.months, 'M'));
+
+        return res;
+    }
+
+    function momentsDifference(base, other) {
+        var res;
+        other = makeAs(other, base);
+        if (base.isBefore(other)) {
+            res = positiveMomentsDifference(base, other);
+        } else {
+            res = positiveMomentsDifference(other, base);
+            res.milliseconds = -res.milliseconds;
+            res.months = -res.months;
+        }
+
+        return res;
+    }
+
+    // TODO: remove 'name' arg after deprecation is removed
+    function createAdder(direction, name) {
+        return function (val, period) {
+            var dur, tmp;
+            //invert the arguments, but complain about it
+            if (period !== null && !isNaN(+period)) {
+                deprecateSimple(name, "moment()." + name  + "(period, number) is deprecated. Please use moment()." + name + "(number, period).");
+                tmp = val; val = period; period = tmp;
+            }
+
+            val = typeof val === 'string' ? +val : val;
+            dur = moment.duration(val, period);
+            addOrSubtractDurationFromMoment(this, dur, direction);
+            return this;
+        };
+    }
+
     function addOrSubtractDurationFromMoment(mom, duration, isAdding, updateOffset) {
         var milliseconds = duration._milliseconds,
             days = duration._days,
@@ -691,8 +772,8 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     }
 
     function isDate(input) {
-        return  Object.prototype.toString.call(input) === '[object Date]' ||
-                input instanceof Date;
+        return Object.prototype.toString.call(input) === '[object Date]' ||
+            input instanceof Date;
     }
 
     // compare two arrays, return the number of differences
@@ -752,7 +833,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
         moment[field] = function (format, index) {
             var i, getter,
-                method = moment.fn._lang[field],
+                method = moment._locale[field],
                 results = [];
 
             if (typeof format === 'number') {
@@ -762,7 +843,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
             getter = function (i) {
                 var m = moment().utc().set(setter, i);
-                return method.call(moment.fn._lang, m, format || '');
+                return method.call(moment._locale, m, format || '');
             };
 
             if (index != null) {
@@ -847,8 +928,48 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         return m._isValid;
     }
 
-    function normalizeLanguage(key) {
+    function normalizeLocale(key) {
         return key ? key.toLowerCase().replace('_', '-') : key;
+    }
+
+    // pick the locale from the array
+    // try ['en-au', 'en-gb'] as 'en-au', 'en-gb', 'en', as in move through the list trying each
+    // substring from most specific to least, but move to the next array item if it's a more specific variant than the current root
+    function chooseLocale(names) {
+        var i = 0, j, next, locale, split;
+
+        while (i < names.length) {
+            split = normalizeLocale(names[i]).split('-');
+            j = split.length;
+            next = normalizeLocale(names[i + 1]);
+            next = next ? next.split('-') : null;
+            while (j > 0) {
+                locale = loadLocale(split.slice(0, j).join('-'));
+                if (locale) {
+                    return locale;
+                }
+                if (next && next.length >= j && compareArrays(split, next, true) >= j - 1) {
+                    //the next array item is better than a shallower substring of this one
+                    break;
+                }
+                j--;
+            }
+            i++;
+        }
+        return null;
+    }
+
+    function loadLocale(name) {
+        var oldLocale = null;
+        if (!locales[name] && hasModule) {
+            try {
+                oldLocale = moment.locale();
+                require('./locale/' + name);
+                // because defineLocale currently also sets the global locale, we want to undo that for lazy loaded locales
+                moment.locale(oldLocale);
+            } catch (e) { }
+        }
+        return locales[name];
     }
 
     // Return a moment from input, that is local/utc/zone equivalent to model.
@@ -858,11 +979,11 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     }
 
     /************************************
-        Languages
+        Locale
     ************************************/
 
 
-    extend(Language.prototype, {
+    extend(Locale.prototype, {
 
         set : function (config) {
             var prop, i;
@@ -876,12 +997,12 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             }
         },
 
-        _months : "January_February_March_April_May_June_July_August_September_October_November_December".split("_"),
+        _months : 'January_February_March_April_May_June_July_August_September_October_November_December'.split('_'),
         months : function (m) {
             return this._months[m.month()];
         },
 
-        _monthsShort : "Jan_Feb_Mar_Apr_May_Jun_Jul_Aug_Sep_Oct_Nov_Dec".split("_"),
+        _monthsShort : 'Jan_Feb_Mar_Apr_May_Jun_Jul_Aug_Sep_Oct_Nov_Dec'.split('_'),
         monthsShort : function (m) {
             return this._monthsShort[m.month()];
         },
@@ -907,17 +1028,17 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             }
         },
 
-        _weekdays : "Sunday_Monday_Tuesday_Wednesday_Thursday_Friday_Saturday".split("_"),
+        _weekdays : 'Sunday_Monday_Tuesday_Wednesday_Thursday_Friday_Saturday'.split('_'),
         weekdays : function (m) {
             return this._weekdays[m.day()];
         },
 
-        _weekdaysShort : "Sun_Mon_Tue_Wed_Thu_Fri_Sat".split("_"),
+        _weekdaysShort : 'Sun_Mon_Tue_Wed_Thu_Fri_Sat'.split('_'),
         weekdaysShort : function (m) {
             return this._weekdaysShort[m.day()];
         },
 
-        _weekdaysMin : "Su_Mo_Tu_We_Th_Fr_Sa".split("_"),
+        _weekdaysMin : 'Su_Mo_Tu_We_Th_Fr_Sa'.split('_'),
         weekdaysMin : function (m) {
             return this._weekdaysMin[m.day()];
         },
@@ -944,11 +1065,11 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         _longDateFormat : {
-            LT : "h:mm A",
-            L : "MM/DD/YYYY",
-            LL : "MMMM D YYYY",
-            LLL : "MMMM D YYYY LT",
-            LLLL : "dddd, MMMM D YYYY LT"
+            LT : 'h:mm A',
+            L : 'MM/DD/YYYY',
+            LL : 'MMMM D, YYYY',
+            LLL : 'MMMM D, YYYY LT',
+            LLLL : 'dddd, MMMM D, YYYY LT'
         },
         longDateFormat : function (key) {
             var output = this._longDateFormat[key];
@@ -990,35 +1111,37 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         _relativeTime : {
-            future : "in %s",
-            past : "%s ago",
-            s : "a few seconds",
-            m : "a minute",
-            mm : "%d minutes",
-            h : "an hour",
-            hh : "%d hours",
-            d : "a day",
-            dd : "%d days",
-            M : "a month",
-            MM : "%d months",
-            y : "a year",
-            yy : "%d years"
+            future : 'in %s',
+            past : '%s ago',
+            s : 'a few seconds',
+            m : 'a minute',
+            mm : '%d minutes',
+            h : 'an hour',
+            hh : '%d hours',
+            d : 'a day',
+            dd : '%d days',
+            M : 'a month',
+            MM : '%d months',
+            y : 'a year',
+            yy : '%d years'
         },
+
         relativeTime : function (number, withoutSuffix, string, isFuture) {
             var output = this._relativeTime[string];
             return (typeof output === 'function') ?
                 output(number, withoutSuffix, string, isFuture) :
                 output.replace(/%d/i, number);
         },
+
         pastFuture : function (diff, output) {
             var format = this._relativeTime[diff > 0 ? 'future' : 'past'];
             return typeof format === 'function' ? format(output) : format.replace(/%s/i, output);
         },
 
         ordinal : function (number) {
-            return this._ordinal.replace("%d", number);
+            return this._ordinal.replace('%d', number);
         },
-        _ordinal : "%d",
+        _ordinal : '%d',
 
         preparse : function (string) {
             return string;
@@ -1043,78 +1166,6 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         }
     });
 
-    // Loads a language definition into the `languages` cache.  The function
-    // takes a key and optionally values.  If not in the browser and no values
-    // are provided, it will load the language file module.  As a convenience,
-    // this function also returns the language values.
-    function loadLang(key, values) {
-        values.abbr = key;
-        if (!languages[key]) {
-            languages[key] = new Language();
-        }
-        languages[key].set(values);
-        return languages[key];
-    }
-
-    // Remove a language from the `languages` cache. Mostly useful in tests.
-    function unloadLang(key) {
-        delete languages[key];
-    }
-
-    // Determines which language definition to use and returns it.
-    //
-    // With no parameters, it will return the global language.  If you
-    // pass in a language key, such as 'en', it will return the
-    // definition for 'en', so long as 'en' has already been loaded using
-    // moment.lang.
-    function getLangDefinition(key) {
-        var i = 0, j, lang, next, split,
-            get = function (k) {
-                if (!languages[k] && hasModule) {
-                    try {
-                        require('./lang/' + k);
-                    } catch (e) { }
-                }
-                return languages[k];
-            };
-
-        if (!key) {
-            return moment.fn._lang;
-        }
-
-        if (!isArray(key)) {
-            //short-circuit everything else
-            lang = get(key);
-            if (lang) {
-                return lang;
-            }
-            key = [key];
-        }
-
-        //pick the language from the array
-        //try ['en-au', 'en-gb'] as 'en-au', 'en-gb', 'en', as in move through the list trying each
-        //substring from most specific to least, but move to the next array item if it's a more specific variant than the current root
-        while (i < key.length) {
-            split = normalizeLanguage(key[i]).split('-');
-            j = split.length;
-            next = normalizeLanguage(key[i + 1]);
-            next = next ? next.split('-') : null;
-            while (j > 0) {
-                lang = get(split.slice(0, j).join('-'));
-                if (lang) {
-                    return lang;
-                }
-                if (next && next.length >= j && compareArrays(split, next, true) >= j - 1) {
-                    //the next array item is better than a shallower substring of this one
-                    break;
-                }
-                j--;
-            }
-            i++;
-        }
-        return moment.fn._lang;
-    }
-
     /************************************
         Formatting
     ************************************/
@@ -1122,9 +1173,9 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
     function removeFormattingTokens(input) {
         if (input.match(/\[[\s\S]/)) {
-            return input.replace(/^\[|\]$/g, "");
+            return input.replace(/^\[|\]$/g, '');
         }
-        return input.replace(/\\/g, "");
+        return input.replace(/\\/g, '');
     }
 
     function makeFormatFunction(format) {
@@ -1139,7 +1190,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         }
 
         return function (mom) {
-            var output = "";
+            var output = '';
             for (i = 0; i < length; i++) {
                 output += array[i] instanceof Function ? array[i].call(mom, format) : array[i];
             }
@@ -1149,12 +1200,11 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
     // format date using native date object
     function formatMoment(m, format) {
-
         if (!m.isValid()) {
-            return m.lang().invalidDate();
+            return m.localeData().invalidDate();
         }
 
-        format = expandFormat(format, m.lang());
+        format = expandFormat(format, m.localeData());
 
         if (!formatFunctions[format]) {
             formatFunctions[format] = makeFormatFunction(format);
@@ -1163,11 +1213,11 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         return formatFunctions[format](m);
     }
 
-    function expandFormat(format, lang) {
+    function expandFormat(format, locale) {
         var i = 5;
 
         function replaceLongDateFormatTokens(input) {
-            return lang.longDateFormat(input) || input;
+            return locale.longDateFormat(input) || input;
         }
 
         localFormattingTokens.lastIndex = 0;
@@ -1208,13 +1258,19 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         case 'ggggg':
             return strict ? parseTokenSixDigits : parseTokenOneToSixDigits;
         case 'S':
-            if (strict) { return parseTokenOneDigit; }
+            if (strict) {
+                return parseTokenOneDigit;
+            }
             /* falls through */
         case 'SS':
-            if (strict) { return parseTokenTwoDigits; }
+            if (strict) {
+                return parseTokenTwoDigits;
+            }
             /* falls through */
         case 'SSS':
-            if (strict) { return parseTokenThreeDigits; }
+            if (strict) {
+                return parseTokenThreeDigits;
+            }
             /* falls through */
         case 'DDD':
             return parseTokenOneToThreeDigits;
@@ -1226,7 +1282,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             return parseTokenWord;
         case 'a':
         case 'A':
-            return getLangDefinition(config._l)._meridiemParse;
+            return config._locale._meridiemParse;
         case 'X':
             return parseTokenTimestampMs;
         case 'Z':
@@ -1263,13 +1319,13 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         case 'Do':
             return parseTokenOrdinal;
         default :
-            a = new RegExp(regexpEscape(unescapeFormat(token.replace('\\', '')), "i"));
+            a = new RegExp(regexpEscape(unescapeFormat(token.replace('\\', '')), 'i'));
             return a;
         }
     }
 
     function timezoneMinutesFromString(string) {
-        string = string || "";
+        string = string || '';
         var possibleTzMatches = (string.match(parseTokenTimezone) || []),
             tzChunk = possibleTzMatches[possibleTzMatches.length - 1] || [],
             parts = (tzChunk + '').match(parseTimezoneChunker) || ['-', 0, 0],
@@ -1298,7 +1354,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             break;
         case 'MMM' : // fall through to MMMM
         case 'MMMM' :
-            a = getLangDefinition(config._l).monthsParse(input);
+            a = config._locale.monthsParse(input);
             // if we didn't find a month name, mark the date as invalid.
             if (a != null) {
                 datePartArray[MONTH] = a;
@@ -1338,7 +1394,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         // AM / PM
         case 'a' : // fall through to A
         case 'A' :
-            config._isPm = getLangDefinition(config._l).isPM(input);
+            config._isPm = config._locale.isPM(input);
             break;
         // 24 HOUR
         case 'H' : // fall through to hh
@@ -1378,7 +1434,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         case 'dd':
         case 'ddd':
         case 'dddd':
-            a = getLangDefinition(config._l).weekdaysParse(input);
+            a = config._locale.weekdaysParse(input);
             // if we didn't get a weekday name, mark the date as invalid
             if (a != null) {
                 config._w = config._w || {};
@@ -1414,7 +1470,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     }
 
     function dayOfYearFromWeekInfo(config) {
-        var w, weekYear, week, weekday, dow, doy, temp, lang;
+        var w, weekYear, week, weekday, dow, doy, temp;
 
         w = config._w;
         if (w.GG != null || w.W != null || w.E != null) {
@@ -1429,9 +1485,8 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             week = dfl(w.W, 1);
             weekday = dfl(w.E, 1);
         } else {
-            lang = getLangDefinition(config._l);
-            dow = lang._week.dow;
-            doy = lang._week.doy;
+            dow = config._locale._week.dow;
+            doy = config._locale._week.doy;
 
             weekYear = dfl(w.gg, config._a[YEAR], weekOfYear(moment(), dow, doy).year);
             week = dfl(w.w, 1);
@@ -1545,7 +1600,6 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
     // date from string and format string
     function makeDateFromStringAndFormat(config) {
-
         if (config._f === moment.ISO_8601) {
             parseISO(config);
             return;
@@ -1555,13 +1609,12 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         config._pf.empty = true;
 
         // This array is used to make a Date, either with `new Date` or `Date.UTC`
-        var lang = getLangDefinition(config._l),
-            string = '' + config._i,
+        var string = '' + config._i,
             i, parsedInput, tokens, token, skipped,
             stringLength = string.length,
             totalParsedInputLength = 0;
 
-        tokens = expandFormat(config._f, lang).match(formattingTokens) || [];
+        tokens = expandFormat(config._f, config._locale).match(formattingTokens) || [];
 
         for (i = 0; i < tokens.length; i++) {
             token = tokens[i];
@@ -1636,7 +1689,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
         for (i = 0; i < config._f.length; i++) {
             currentScore = 0;
-            tempConfig = extend({}, config);
+            tempConfig = copyConfig({}, config);
             tempConfig._pf = defaultParsingFlags();
             tempConfig._f = config._f[i];
             makeDateFromStringAndFormat(tempConfig);
@@ -1673,7 +1726,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             for (i = 0, l = isoDates.length; i < l; i++) {
                 if (isoDates[i][1].exec(string)) {
                     // match[5] should be "T" or undefined
-                    config._f = isoDates[i][0] + (match[6] || " ");
+                    config._f = isoDates[i][0] + (match[6] || ' ');
                     break;
                 }
             }
@@ -1684,7 +1737,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                 }
             }
             if (string.match(parseTokenTimezone)) {
-                config._f += "Z";
+                config._f += 'Z';
             }
             makeDateFromStringAndFormat(config);
         } else {
@@ -1702,20 +1755,18 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     }
 
     function makeDateFromInput(config) {
-        var input = config._i,
-            matched = aspNetJsonRegex.exec(input);
-
+        var input = config._i, matched;
         if (input === undefined) {
             config._d = new Date();
-        } else if (matched) {
+        } else if (isDate(input)) {
+            config._d = new Date(+input);
+        } else if ((matched = aspNetJsonRegex.exec(input)) !== null) {
             config._d = new Date(+matched[1]);
         } else if (typeof input === 'string') {
             makeDateFromString(config);
         } else if (isArray(input)) {
             config._a = input.slice(0);
             dateFromConfig(config);
-        } else if (isDate(input)) {
-            config._d = new Date(+input);
         } else if (typeof(input) === 'object') {
             dateFromObject(config);
         } else if (typeof(input) === 'number') {
@@ -1746,13 +1797,13 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         return date;
     }
 
-    function parseWeekday(input, language) {
+    function parseWeekday(input, locale) {
         if (typeof input === 'string') {
             if (!isNaN(input)) {
                 input = parseInt(input, 10);
             }
             else {
-                input = language.weekdaysParse(input);
+                input = locale.weekdaysParse(input);
                 if (typeof input !== 'number') {
                     return null;
                 }
@@ -1767,29 +1818,33 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
 
     // helper function for moment.fn.from, moment.fn.fromNow, and moment.duration.fn.humanize
-    function substituteTimeAgo(string, number, withoutSuffix, isFuture, lang) {
-        return lang.relativeTime(number || 1, !!withoutSuffix, string, isFuture);
+    function substituteTimeAgo(string, number, withoutSuffix, isFuture, locale) {
+        return locale.relativeTime(number || 1, !!withoutSuffix, string, isFuture);
     }
 
-    function relativeTime(milliseconds, withoutSuffix, lang) {
-        var seconds = round(Math.abs(milliseconds) / 1000),
-            minutes = round(seconds / 60),
-            hours = round(minutes / 60),
-            days = round(hours / 24),
-            years = round(days / 365),
-            args = seconds < relativeTimeThresholds.s  && ['s', seconds] ||
+    function relativeTime(posNegDuration, withoutSuffix, locale) {
+        var duration = moment.duration(posNegDuration).abs(),
+            seconds = round(duration.as('s')),
+            minutes = round(duration.as('m')),
+            hours = round(duration.as('h')),
+            days = round(duration.as('d')),
+            months = round(duration.as('M')),
+            years = round(duration.as('y')),
+
+            args = seconds < relativeTimeThresholds.s && ['s', seconds] ||
                 minutes === 1 && ['m'] ||
                 minutes < relativeTimeThresholds.m && ['mm', minutes] ||
                 hours === 1 && ['h'] ||
                 hours < relativeTimeThresholds.h && ['hh', hours] ||
                 days === 1 && ['d'] ||
-                days <= relativeTimeThresholds.dd && ['dd', days] ||
-                days <= relativeTimeThresholds.dm && ['M'] ||
-                days < relativeTimeThresholds.dy && ['MM', round(days / 30)] ||
+                days < relativeTimeThresholds.d && ['dd', days] ||
+                months === 1 && ['M'] ||
+                months < relativeTimeThresholds.M && ['MM', months] ||
                 years === 1 && ['y'] || ['yy', years];
+
         args[2] = withoutSuffix;
-        args[3] = milliseconds > 0;
-        args[4] = lang;
+        args[3] = +posNegDuration > 0;
+        args[4] = locale;
         return substituteTimeAgo.apply({}, args);
     }
 
@@ -1820,7 +1875,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             daysToDayOfWeek += 7;
         }
 
-        adjustedMoment = moment(mom).add('d', daysToDayOfWeek);
+        adjustedMoment = moment(mom).add(daysToDayOfWeek, 'd');
         return {
             week: Math.ceil(adjustedMoment.dayOfYear() / 7),
             year: adjustedMoment.year()
@@ -1850,18 +1905,18 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         var input = config._i,
             format = config._f;
 
+        config._locale = config._locale || moment.localeData(config._l);
+
         if (input === null || (format === undefined && input === '')) {
             return moment.invalid({nullInput: true});
         }
 
         if (typeof input === 'string') {
-            config._i = input = getLangDefinition().preparse(input);
+            config._i = input = config._locale.preparse(input);
         }
 
         if (moment.isMoment(input)) {
-            config = cloneMoment(input);
-
-            config._d = new Date(+input._d);
+            return new Moment(input, true);
         } else if (format) {
             if (isArray(format)) {
                 makeDateFromStringAndArray(config);
@@ -1875,12 +1930,12 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         return new Moment(config);
     }
 
-    moment = function (input, format, lang, strict) {
+    moment = function (input, format, locale, strict) {
         var c;
 
-        if (typeof(lang) === "boolean") {
-            strict = lang;
-            lang = undefined;
+        if (typeof(locale) === "boolean") {
+            strict = locale;
+            locale = undefined;
         }
         // object construction must be done this way.
         // https://github.com/moment/moment/issues/1423
@@ -1888,7 +1943,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         c._isAMomentObject = true;
         c._i = input;
         c._f = format;
-        c._l = lang;
+        c._l = locale;
         c._strict = strict;
         c._isUTC = false;
         c._pf = defaultParsingFlags();
@@ -1899,13 +1954,14 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     moment.suppressDeprecationWarnings = false;
 
     moment.createFromInputFallback = deprecate(
-            "moment construction falls back to js Date. This is " +
-            "discouraged and will be removed in upcoming major " +
-            "release. Please refer to " +
-            "https://github.com/moment/moment/issues/1407 for more info.",
-            function (config) {
-        config._d = new Date(config._i);
-    });
+        'moment construction falls back to js Date. This is ' +
+        'discouraged and will be removed in upcoming major ' +
+        'release. Please refer to ' +
+        'https://github.com/moment/moment/issues/1407 for more info.',
+        function (config) {
+            config._d = new Date(config._i);
+        }
+    );
 
     // Pick a moment m from moments so that m[fn](other) is true for all
     // other. This relies on the function fn to be transitive.
@@ -1942,12 +1998,12 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     };
 
     // creating with utc
-    moment.utc = function (input, format, lang, strict) {
+    moment.utc = function (input, format, locale, strict) {
         var c;
 
-        if (typeof(lang) === "boolean") {
-            strict = lang;
-            lang = undefined;
+        if (typeof(locale) === "boolean") {
+            strict = locale;
+            locale = undefined;
         }
         // object construction must be done this way.
         // https://github.com/moment/moment/issues/1423
@@ -1955,7 +2011,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         c._isAMomentObject = true;
         c._useUTC = true;
         c._isUTC = true;
-        c._l = lang;
+        c._l = locale;
         c._i = input;
         c._f = format;
         c._strict = strict;
@@ -1976,7 +2032,8 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             match = null,
             sign,
             ret,
-            parseIso;
+            parseIso,
+            diffRes;
 
         if (moment.isDuration(input)) {
             duration = {
@@ -1992,7 +2049,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                 duration.milliseconds = input;
             }
         } else if (!!(match = aspNetTimeSpanJsonRegex.exec(input))) {
-            sign = (match[1] === "-") ? -1 : 1;
+            sign = (match[1] === '-') ? -1 : 1;
             duration = {
                 y: 0,
                 d: toInt(match[DATE]) * sign,
@@ -2002,7 +2059,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                 ms: toInt(match[MILLISECOND]) * sign
             };
         } else if (!!(match = isoDurationRegex.exec(input))) {
-            sign = (match[1] === "-") ? -1 : 1;
+            sign = (match[1] === '-') ? -1 : 1;
             parseIso = function (inp) {
                 // We'd normally use ~~inp for this, but unfortunately it also
                 // converts floats to ints.
@@ -2020,12 +2077,19 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                 s: parseIso(match[7]),
                 w: parseIso(match[8])
             };
+        } else if (typeof duration === 'object' &&
+                ('from' in duration || 'to' in duration)) {
+            diffRes = momentsDifference(moment(duration.from), moment(duration.to));
+
+            duration = {};
+            duration.ms = diffRes.milliseconds;
+            duration.M = diffRes.months;
         }
 
         ret = new Duration(duration);
 
-        if (moment.isDuration(input) && input.hasOwnProperty('_lang')) {
-            ret._lang = input._lang;
+        if (moment.isDuration(input) && input.hasOwnProperty('_locale')) {
+            ret._locale = input._locale;
         }
 
         return ret;
@@ -2049,40 +2113,93 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     moment.updateOffset = function () {};
 
     // This function allows you to set a threshold for relative time strings
-    moment.relativeTimeThreshold = function(threshold, limit) {
-      if (relativeTimeThresholds[threshold] === undefined) {
-        return false;
-      }
-      relativeTimeThresholds[threshold] = limit;
-      return true;
+    moment.relativeTimeThreshold = function (threshold, limit) {
+        if (relativeTimeThresholds[threshold] === undefined) {
+            return false;
+        }
+        if (limit === undefined) {
+            return relativeTimeThresholds[threshold];
+        }
+        relativeTimeThresholds[threshold] = limit;
+        return true;
     };
 
-    // This function will load languages and then set the global language.  If
+    moment.lang = deprecate(
+        "moment.lang is deprecated. Use moment.locale instead.",
+        function (key, value) {
+            return moment.locale(key, value);
+        }
+    );
+
+    // This function will load locale and then set the global locale.  If
     // no arguments are passed in, it will simply return the current global
-    // language key.
-    moment.lang = function (key, values) {
-        var r;
-        if (!key) {
-            return moment.fn._lang._abbr;
+    // locale key.
+    moment.locale = function (key, values) {
+        var data;
+        if (key) {
+            if (typeof(values) !== "undefined") {
+                data = moment.defineLocale(key, values);
+            }
+            else {
+                data = moment.localeData(key);
+            }
+
+            if (data) {
+                moment.duration._locale = moment._locale = data;
+            }
         }
-        if (values) {
-            loadLang(normalizeLanguage(key), values);
-        } else if (values === null) {
-            unloadLang(key);
-            key = 'en';
-        } else if (!languages[key]) {
-            getLangDefinition(key);
-        }
-        r = moment.duration.fn._lang = moment.fn._lang = getLangDefinition(key);
-        return r._abbr;
+
+        return moment._locale._abbr;
     };
 
-    // returns language data
-    moment.langData = function (key) {
-        if (key && key._lang && key._lang._abbr) {
-            key = key._lang._abbr;
+    moment.defineLocale = function (name, values) {
+        if (values !== null) {
+            values.abbr = name;
+            if (!locales[name]) {
+                locales[name] = new Locale();
+            }
+            locales[name].set(values);
+
+            // backwards compat for now: also set the locale
+            moment.locale(name);
+
+            return locales[name];
+        } else {
+            // useful for testing
+            delete locales[name];
+            return null;
         }
-        return getLangDefinition(key);
+    };
+
+    moment.langData = deprecate(
+        "moment.langData is deprecated. Use moment.localeData instead.",
+        function (key) {
+            return moment.localeData(key);
+        }
+    );
+
+    // returns locale data
+    moment.localeData = function (key) {
+        var locale;
+
+        if (key && key._locale && key._locale._abbr) {
+            key = key._locale._abbr;
+        }
+
+        if (!key) {
+            return moment._locale;
+        }
+
+        if (!isArray(key)) {
+            //short-circuit everything else
+            locale = loadLocale(key);
+            if (locale) {
+                return locale;
+            }
+            key = [key];
+        }
+
+        return chooseLocale(key);
     };
 
     // compare moment object
@@ -2144,7 +2261,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         toString : function () {
-            return this.clone().lang('en').format("ddd MMM DD YYYY HH:mm:ss [GMT]ZZ");
+            return this.clone().locale('en').format("ddd MMM DD YYYY HH:mm:ss [GMT]ZZ");
         },
 
         toDate : function () {
@@ -2178,7 +2295,6 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         isDSTShifted : function () {
-
             if (this._a) {
                 return this.isValid() && compareArrays(this._a, (this._isUTC ? moment.utc(this._a) : moment(this._a)).toArray()) > 0;
             }
@@ -2194,48 +2310,30 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             return this._pf.overflow;
         },
 
-        utc : function () {
-            return this.zone(0);
+        utc : function (keepLocalTime) {
+            return this.zone(0, keepLocalTime);
         },
 
-        local : function () {
-            this.zone(0);
-            this._isUTC = false;
+        local : function (keepLocalTime) {
+            if (this._isUTC) {
+                this.zone(0, keepLocalTime);
+                this._isUTC = false;
+
+                if (keepLocalTime) {
+                    this.add(this._d.getTimezoneOffset(), 'm');
+                }
+            }
             return this;
         },
 
         format : function (inputString) {
             var output = formatMoment(this, inputString || moment.defaultFormat);
-            return this.lang().postformat(output);
+            return this.localeData().postformat(output);
         },
 
-        add : function (input, val) {
-            var dur;
-            // switch args to support add('s', 1) and add(1, 's')
-            if (typeof input === 'string' && typeof val === 'string') {
-                dur = moment.duration(isNaN(+val) ? +input : +val, isNaN(+val) ? val : input);
-            } else if (typeof input === 'string') {
-                dur = moment.duration(+val, input);
-            } else {
-                dur = moment.duration(input, val);
-            }
-            addOrSubtractDurationFromMoment(this, dur, 1);
-            return this;
-        },
+        add : createAdder(1, 'add'),
 
-        subtract : function (input, val) {
-            var dur;
-            // switch args to support subtract('s', 1) and subtract(1, 's')
-            if (typeof input === 'string' && typeof val === 'string') {
-                dur = moment.duration(isNaN(+val) ? +input : +val, isNaN(+val) ? val : input);
-            } else if (typeof input === 'string') {
-                dur = moment.duration(+val, input);
-            } else {
-                dur = moment.duration(input, val);
-            }
-            addOrSubtractDurationFromMoment(this, dur, -1);
-            return this;
-        },
+        subtract : createAdder(-1, 'subtract'),
 
         diff : function (input, units, asFloat) {
             var that = makeAs(input, this),
@@ -2272,7 +2370,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         from : function (time, withoutSuffix) {
-            return moment.duration(this.diff(time)).lang(this.lang()._abbr).humanize(!withoutSuffix);
+            return moment.duration({to: this, from: time}).locale(this.locale()).humanize(!withoutSuffix);
         },
 
         fromNow : function (withoutSuffix) {
@@ -2291,7 +2389,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                     diff < 1 ? 'sameDay' :
                     diff < 2 ? 'nextDay' :
                     diff < 7 ? 'nextWeek' : 'sameElse';
-            return this.format(this.lang().calendar(format, this));
+            return this.format(this.localeData().calendar(format, this));
         },
 
         isLeapYear : function () {
@@ -2306,8 +2404,8 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         day : function (input) {
             var day = this._isUTC ? this._d.getUTCDay() : this._d.getDay();
             if (input != null) {
-                input = parseWeekday(input, this.lang());
-                return this.add({ d : input - day });
+                input = parseWeekday(input, this.localeData());
+                return this.add(input - day, 'd');
             } else {
                 return day;
             }
@@ -2315,7 +2413,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
         month : makeAccessor('Month', true),
 
-        startOf: function (units) {
+        startOf : function (units) {
             units = normalizeUnits(units);
             // the following switch intentionally omits break keywords
             // to utilize falling through the cases.
@@ -2360,7 +2458,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
         endOf: function (units) {
             units = normalizeUnits(units);
-            return this.startOf(units).add((units === 'isoWeek' ? 'week' : units), 1).subtract('ms', 1);
+            return this.startOf(units).add(1, (units === 'isoWeek' ? 'week' : units)).subtract(1, 'ms');
         },
 
         isAfter: function (input, units) {
@@ -2379,7 +2477,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         min: deprecate(
-                 "moment().min is deprecated, use moment.min instead. https://github.com/moment/moment/issues/1548",
+                 'moment().min is deprecated, use moment.min instead. https://github.com/moment/moment/issues/1548',
                  function (other) {
                      other = moment.apply(null, arguments);
                      return other < this ? this : other;
@@ -2387,36 +2485,43 @@ require.register("moment-moment/moment.js", function(exports, require, module){
          ),
 
         max: deprecate(
-                "moment().max is deprecated, use moment.max instead. https://github.com/moment/moment/issues/1548",
+                'moment().max is deprecated, use moment.max instead. https://github.com/moment/moment/issues/1548',
                 function (other) {
                     other = moment.apply(null, arguments);
                     return other > this ? this : other;
                 }
         ),
 
-        // keepTime = true means only change the timezone, without affecting
-        // the local hour. So 5:31:26 +0300 --[zone(2, true)]--> 5:31:26 +0200
-        // It is possible that 5:31:26 doesn't exist int zone +0200, so we
-        // adjust the time as needed, to be valid.
+        // keepLocalTime = true means only change the timezone, without
+        // affecting the local hour. So 5:31:26 +0300 --[zone(2, true)]-->
+        // 5:31:26 +0200 It is possible that 5:31:26 doesn't exist int zone
+        // +0200, so we adjust the time as needed, to be valid.
         //
         // Keeping the time actually adds/subtracts (one hour)
         // from the actual represented time. That is why we call updateOffset
         // a second time. In case it wants us to change the offset again
         // _changeInProgress == true case, then we have to adjust, because
         // there is no such time in the given timezone.
-        zone : function (input, keepTime) {
-            var offset = this._offset || 0;
+        zone : function (input, keepLocalTime) {
+            var offset = this._offset || 0,
+                localAdjust;
             if (input != null) {
-                if (typeof input === "string") {
+                if (typeof input === 'string') {
                     input = timezoneMinutesFromString(input);
                 }
                 if (Math.abs(input) < 16) {
                     input = input * 60;
                 }
+                if (!this._isUTC && keepLocalTime) {
+                    localAdjust = this._d.getTimezoneOffset();
+                }
                 this._offset = input;
                 this._isUTC = true;
+                if (localAdjust != null) {
+                    this.subtract(localAdjust, 'm');
+                }
                 if (offset !== input) {
-                    if (!keepTime || this._changeInProgress) {
+                    if (!keepLocalTime || this._changeInProgress) {
                         addOrSubtractDurationFromMoment(this,
                                 moment.duration(offset - input, 'm'), 1, false);
                     } else if (!this._changeInProgress) {
@@ -2432,11 +2537,11 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         zoneAbbr : function () {
-            return this._isUTC ? "UTC" : "";
+            return this._isUTC ? 'UTC' : '';
         },
 
         zoneName : function () {
-            return this._isUTC ? "Coordinated Universal Time" : "";
+            return this._isUTC ? 'Coordinated Universal Time' : '';
         },
 
         parseZone : function () {
@@ -2465,7 +2570,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
         dayOfYear : function (input) {
             var dayOfYear = round((moment(this).startOf('day') - moment(this).startOf('year')) / 864e5) + 1;
-            return input == null ? dayOfYear : this.add("d", (input - dayOfYear));
+            return input == null ? dayOfYear : this.add((input - dayOfYear), 'd');
         },
 
         quarter : function (input) {
@@ -2473,28 +2578,28 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         weekYear : function (input) {
-            var year = weekOfYear(this, this.lang()._week.dow, this.lang()._week.doy).year;
-            return input == null ? year : this.add("y", (input - year));
+            var year = weekOfYear(this, this.localeData()._week.dow, this.localeData()._week.doy).year;
+            return input == null ? year : this.add((input - year), 'y');
         },
 
         isoWeekYear : function (input) {
             var year = weekOfYear(this, 1, 4).year;
-            return input == null ? year : this.add("y", (input - year));
+            return input == null ? year : this.add((input - year), 'y');
         },
 
         week : function (input) {
-            var week = this.lang().week(this);
-            return input == null ? week : this.add("d", (input - week) * 7);
+            var week = this.localeData().week(this);
+            return input == null ? week : this.add((input - week) * 7, 'd');
         },
 
         isoWeek : function (input) {
             var week = weekOfYear(this, 1, 4).week;
-            return input == null ? week : this.add("d", (input - week) * 7);
+            return input == null ? week : this.add((input - week) * 7, 'd');
         },
 
         weekday : function (input) {
-            var weekday = (this.day() + 7 - this.lang()._week.dow) % 7;
-            return input == null ? weekday : this.add("d", input - weekday);
+            var weekday = (this.day() + 7 - this.localeData()._week.dow) % 7;
+            return input == null ? weekday : this.add(input - weekday, 'd');
         },
 
         isoWeekday : function (input) {
@@ -2509,7 +2614,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         weeksInYear : function () {
-            var weekInfo = this._lang._week;
+            var weekInfo = this.localeData()._week;
             return weeksInYear(this.year(), weekInfo.dow, weekInfo.doy);
         },
 
@@ -2526,16 +2631,32 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             return this;
         },
 
-        // If passed a language key, it will set the language for this
-        // instance.  Otherwise, it will return the language configuration
+        // If passed a locale key, it will set the locale for this
+        // instance.  Otherwise, it will return the locale configuration
         // variables for this instance.
-        lang : function (key) {
+        locale : function (key) {
             if (key === undefined) {
-                return this._lang;
+                return this._locale._abbr;
             } else {
-                this._lang = getLangDefinition(key);
+                this._locale = moment.localeData(key);
                 return this;
             }
+        },
+
+        lang : deprecate(
+            "moment().lang() is deprecated. Use moment().localeData() instead.",
+            function (key) {
+                if (key === undefined) {
+                    return this.localeData();
+                } else {
+                    this._locale = moment.localeData(key);
+                    return this;
+                }
+            }
+        ),
+
+        localeData : function () {
+            return this._locale;
         }
     });
 
@@ -2544,7 +2665,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
 
         // TODO: Move this out of here!
         if (typeof value === 'string') {
-            value = mom.lang().monthsParse(value);
+            value = mom.localeData().monthsParse(value);
             // TODO: Another silent failure?
             if (typeof value !== 'number') {
                 return mom;
@@ -2591,9 +2712,9 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     moment.fn.hour = moment.fn.hours = makeAccessor('Hours', true);
     // moment.fn.month is defined separately
     moment.fn.date = makeAccessor('Date', true);
-    moment.fn.dates = deprecate("dates accessor is deprecated. Use date instead.", makeAccessor('Date', true));
+    moment.fn.dates = deprecate('dates accessor is deprecated. Use date instead.', makeAccessor('Date', true));
     moment.fn.year = makeAccessor('FullYear', true);
-    moment.fn.years = deprecate("years accessor is deprecated. Use year instead.", makeAccessor('FullYear', true));
+    moment.fn.years = deprecate('years accessor is deprecated. Use year instead.', makeAccessor('FullYear', true));
 
     // add plural methods
     moment.fn.days = moment.fn.day;
@@ -2610,6 +2731,17 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     ************************************/
 
 
+    function daysToYears (days) {
+        // 400 years have 146097 days (taking into account leap year rules)
+        return days * 400 / 146097;
+    }
+
+    function yearsToDays (years) {
+        // years * 365 + absRound(years / 4) -
+        //     absRound(years / 100) + absRound(years / 400);
+        return years * 146097 / 400;
+    }
+
     extend(moment.duration.fn = Duration.prototype, {
 
         _bubble : function () {
@@ -2617,7 +2749,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                 days = this._days,
                 months = this._months,
                 data = this._data,
-                seconds, minutes, hours, years;
+                seconds, minutes, hours, years = 0;
 
             // The following code bubbles up values, see the tests for
             // examples of what that means.
@@ -2633,13 +2765,38 @@ require.register("moment-moment/moment.js", function(exports, require, module){
             data.hours = hours % 24;
 
             days += absRound(hours / 24);
-            data.days = days % 30;
 
+            // Accurately convert days to years, assume start from year 0.
+            years = absRound(daysToYears(days));
+            days -= absRound(yearsToDays(years));
+
+            // 30 days to a month
+            // TODO (iskren): Use anchor date (like 1st Jan) to compute this.
             months += absRound(days / 30);
-            data.months = months % 12;
+            days %= 30;
 
-            years = absRound(months / 12);
+            // 12 months -> 1 year
+            years += absRound(months / 12);
+            months %= 12;
+
+            data.days = days;
+            data.months = months;
             data.years = years;
+        },
+
+        abs : function () {
+            this._milliseconds = Math.abs(this._milliseconds);
+            this._days = Math.abs(this._days);
+            this._months = Math.abs(this._months);
+
+            this._data.milliseconds = Math.abs(this._data.milliseconds);
+            this._data.seconds = Math.abs(this._data.seconds);
+            this._data.minutes = Math.abs(this._data.minutes);
+            this._data.hours = Math.abs(this._data.hours);
+            this._data.months = Math.abs(this._data.months);
+            this._data.years = Math.abs(this._data.years);
+
+            return this;
         },
 
         weeks : function () {
@@ -2654,14 +2811,13 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         humanize : function (withSuffix) {
-            var difference = +this,
-                output = relativeTime(difference, !withSuffix, this.lang());
+            var output = relativeTime(this, !withSuffix, this.localeData());
 
             if (withSuffix) {
-                output = this.lang().pastFuture(difference, output);
+                output = this.localeData().pastFuture(+this, output);
             }
 
-            return this.lang().postformat(output);
+            return this.localeData().postformat(output);
         },
 
         add : function (input, val) {
@@ -2695,13 +2851,39 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         },
 
         as : function (units) {
+            var days, months;
             units = normalizeUnits(units);
-            return this['as' + units.charAt(0).toUpperCase() + units.slice(1) + 's']();
+
+            days = this._days + this._milliseconds / 864e5;
+            if (units === 'month' || units === 'year') {
+                months = this._months + daysToYears(days) * 12;
+                return units === 'month' ? months : months / 12;
+            } else {
+                days += yearsToDays(this._months / 12);
+                switch (units) {
+                    case 'week': return days / 7;
+                    case 'day': return days;
+                    case 'hour': return days * 24;
+                    case 'minute': return days * 24 * 60;
+                    case 'second': return days * 24 * 60 * 60;
+                    case 'millisecond': return days * 24 * 60 * 60 * 1000;
+                    default: throw new Error('Unknown unit ' + units);
+                }
+            }
         },
 
         lang : moment.fn.lang,
+        locale : moment.fn.locale,
 
-        toIsoString : function () {
+        toIsoString : deprecate(
+            "toIsoString() is deprecated. Please use toISOString() instead " +
+            "(notice the capitals)",
+            function () {
+                return this.toISOString();
+            }
+        ),
+
+        toISOString : function () {
             // inspired by https://github.com/dordille/moment-isoduration/blob/master/moment.isoduration.js
             var years = Math.abs(this.years()),
                 months = Math.abs(this.months()),
@@ -2725,6 +2907,10 @@ require.register("moment-moment/moment.js", function(exports, require, module){
                 (hours ? hours + 'H' : '') +
                 (minutes ? minutes + 'M' : '') +
                 (seconds ? seconds + 'S' : '');
+        },
+
+        localeData : function () {
+            return this._locale;
         }
     });
 
@@ -2734,32 +2920,44 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         };
     }
 
-    function makeDurationAsGetter(name, factor) {
-        moment.duration.fn['as' + name] = function () {
-            return +this / factor;
-        };
-    }
-
     for (i in unitMillisecondFactors) {
         if (unitMillisecondFactors.hasOwnProperty(i)) {
-            makeDurationAsGetter(i, unitMillisecondFactors[i]);
             makeDurationGetter(i.toLowerCase());
         }
     }
 
-    makeDurationAsGetter('Weeks', 6048e5);
+    moment.duration.fn.asMilliseconds = function () {
+        return this.as('ms');
+    };
+    moment.duration.fn.asSeconds = function () {
+        return this.as('s');
+    };
+    moment.duration.fn.asMinutes = function () {
+        return this.as('m');
+    };
+    moment.duration.fn.asHours = function () {
+        return this.as('h');
+    };
+    moment.duration.fn.asDays = function () {
+        return this.as('d');
+    };
+    moment.duration.fn.asWeeks = function () {
+        return this.as('weeks');
+    };
     moment.duration.fn.asMonths = function () {
-        return (+this - this.years() * 31536e6) / 2592e6 + this.years() * 12;
+        return this.as('M');
+    };
+    moment.duration.fn.asYears = function () {
+        return this.as('y');
     };
 
-
     /************************************
-        Default Lang
+        Default Locale
     ************************************/
 
 
-    // Set default language, other languages will inherit from English.
-    moment.lang('en', {
+    // Set default locale, other locale will inherit from English.
+    moment.locale('en', {
         ordinal : function (number) {
             var b = number % 10,
                 output = (toInt(number % 100 / 10) === 1) ? 'th' :
@@ -2770,7 +2968,7 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         }
     });
 
-    /* EMBED_LANGUAGES */
+    /* EMBED_LOCALES */
 
     /************************************
         Exposing Moment
@@ -2784,9 +2982,9 @@ require.register("moment-moment/moment.js", function(exports, require, module){
         oldGlobalMoment = globalScope.moment;
         if (shouldDeprecate) {
             globalScope.moment = deprecate(
-                    "Accessing Moment through the global scope is " +
-                    "deprecated, and will be removed in an upcoming " +
-                    "release.",
+                    'Accessing Moment through the global scope is ' +
+                    'deprecated, and will be removed in an upcoming ' +
+                    'release.',
                     moment);
         } else {
             globalScope.moment = moment;
@@ -2796,8 +2994,8 @@ require.register("moment-moment/moment.js", function(exports, require, module){
     // CommonJS module is defined
     if (hasModule) {
         module.exports = moment;
-    } else if (typeof define === "function" && define.amd) {
-        define("moment", function (require, exports, module) {
+    } else if (typeof define === 'function' && define.amd) {
+        define('moment', function (require, exports, module) {
             if (module.config && module.config() && module.config().noGlobal === true) {
                 // release the global variable
                 globalScope.moment = oldGlobalMoment;
@@ -2817,12 +3015,14 @@ var config      = require('./config'),
     ViewModel   = require('./viewmodel'),
     utils       = require('./utils'),
     makeHash    = utils.hash,
-    assetTypes  = ['directive', 'filter', 'partial', 'effect', 'component']
-
-// require these so Browserify can catch them
-// so they can be used in Vue.require
-require('./observer')
-require('./transition')
+    assetTypes  = ['directive', 'filter', 'partial', 'effect', 'component'],
+    // Internal modules that are exposed for plugins
+    pluginAPI   = {
+        utils: utils,
+        config: config,
+        transition: require('./transition'),
+        observer: require('./observer')
+    }
 
 ViewModel.options = config.globalAssets = {
     directives  : require('./directives'),
@@ -2843,7 +3043,7 @@ assetTypes.forEach(function (type) {
         }
         if (!value) return hash[id]
         if (type === 'partial') {
-            value = utils.toFragment(value)
+            value = utils.parseTemplateOption(value)
         } else if (type === 'component') {
             value = utils.toConstructor(value)
         } else if (type === 'filter') {
@@ -2898,8 +3098,8 @@ ViewModel.use = function (plugin) {
 /**
  *  Expose internal modules for plugins
  */
-ViewModel.require = function (path) {
-    return require('./' + path)
+ViewModel.require = function (module) {
+    return pluginAPI[module]
 }
 
 ViewModel.extend = extend
@@ -3156,6 +3356,11 @@ var utils = module.exports = {
     toFragment: require('./fragment'),
 
     /**
+     *  Parse the various types of template options
+     */
+    parseTemplateOption: require('./template-parser.js'),
+
+    /**
      *  get a value from an object keypath
      */
     get: function (obj, key) {
@@ -3349,7 +3554,7 @@ var utils = module.exports = {
         }
         if (partials) {
             for (key in partials) {
-                partials[key] = utils.toFragment(partials[key])
+                partials[key] = utils.parseTemplateOption(partials[key])
             }
         }
         if (filters) {
@@ -3358,7 +3563,7 @@ var utils = module.exports = {
             }
         }
         if (template) {
-            options.template = utils.toFragment(template)
+            options.template = utils.parseTemplateOption(template)
         }
     },
 
@@ -3476,29 +3681,12 @@ map.rect = [1, '<svg xmlns="http://www.w3.org/2000/svg" version="1.1">','</svg>'
 
 var TAG_RE = /<([\w:]+)/
 
-module.exports = function (template) {
-
-    if (typeof template !== 'string') {
-        return template
-    }
-
-    // template by ID
-    if (template.charAt(0) === '#') {
-        var templateNode = document.getElementById(template.slice(1))
-        if (!templateNode) return
-        // if its a template tag and the browser supports it,
-        // its content is already a document fragment!
-        if (templateNode.tagName === 'TEMPLATE' && templateNode.content) {
-            return templateNode.content
-        }
-        template = templateNode.innerHTML
-    }
-
+module.exports = function (templateString) {
     var frag = document.createDocumentFragment(),
-        m = TAG_RE.exec(template)
+        m = TAG_RE.exec(templateString)
     // text only
     if (!m) {
-        frag.appendChild(document.createTextNode(template))
+        frag.appendChild(document.createTextNode(templateString))
         return frag
     }
 
@@ -3509,7 +3697,7 @@ module.exports = function (template) {
         suffix = wrap[2],
         node = document.createElement('div')
 
-    node.innerHTML = prefix + template.trim() + suffix
+    node.innerHTML = prefix + templateString.trim() + suffix
     while (depth--) node = node.lastChild
 
     // one element
@@ -4587,13 +4775,23 @@ var Compiler   = require('./compiler'),
  *  and a few reserved methods
  */
 function ViewModel (options) {
-    // just compile. options are passed directly to compiler
+    // compile if options passed, if false return. options are passed directly to compiler
+    if (options === false) return
     new Compiler(this, options)
 }
 
 // All VM prototype methods are inenumerable
 // so it can be stringified/looped through as raw data
 var VMProto = ViewModel.prototype
+
+/**
+ *  init allows config compilation after instantiation:
+ *    var a = new Vue(false)
+ *    a.init(config)
+ */
+def(VMProto, '$init', function (options) {
+    new Compiler(this, options)
+})
 
 /**
  *  Convenience function to get a value from
@@ -4652,8 +4850,8 @@ def(VMProto, '$unwatch', function (key, callback) {
 /**
  *  unbind everything, remove everything
  */
-def(VMProto, '$destroy', function () {
-    this.$compiler.destroy()
+def(VMProto, '$destroy', function (noRemove) {
+    this.$compiler.destroy(noRemove)
 })
 
 /**
@@ -4749,6 +4947,7 @@ function query (el) {
 }
 
 module.exports = ViewModel
+
 });
 require.register("yyx990803-vue/src/binding.js", function(exports, require, module){
 var Batcher        = require('./batcher'),
@@ -5755,6 +5954,55 @@ exports.eval = function (exp, compiler, data) {
     return res
 }
 });
+require.register("yyx990803-vue/src/template-parser.js", function(exports, require, module){
+var toFragment = require('./fragment');
+
+/**
+ * Parses a template string or node and normalizes it into a
+ * a node that can be used as a partial of a template option
+ *
+ * Possible values include
+ * id selector: '#some-template-id'
+ * template string: '<div><span>my template</span></div>'
+ * DocumentFragment object
+ * Node object of type Template
+ */
+module.exports = function(template) {
+    var templateNode;
+
+    if (template instanceof window.DocumentFragment) {
+        // if the template is already a document fragment -- do nothing
+        return template
+    }
+
+    if (typeof template === 'string') {
+        // template by ID
+        if (template.charAt(0) === '#') {
+            templateNode = document.getElementById(template.slice(1))
+            if (!templateNode) return
+        } else {
+            return toFragment(template)
+        }
+    } else if (template.nodeType) {
+        templateNode = template
+    } else {
+        return
+    }
+
+    // if its a template tag and the browser supports it,
+    // its content is already a document fragment!
+    if (templateNode.tagName === 'TEMPLATE' && templateNode.content) {
+        return templateNode.content
+    }
+
+    if (templateNode.tagName === 'SCRIPT') {
+        return toFragment(templateNode.innerHTML)
+    }
+
+    return toFragment(templateNode.outerHTML);
+}
+
+});
 require.register("yyx990803-vue/src/text-parser.js", function(exports, require, module){
 var openChar        = '{',
     endChar         = '}',
@@ -5958,6 +6206,7 @@ filters.lowercase = function (value) {
  *  12345 => $12,345.00
  */
 filters.currency = function (value, sign) {
+    value = parseFloat(value)
     if (!value && value !== 0) return ''
     sign = sign || '$'
     var s = Math.floor(value).toString(),
@@ -6875,7 +7124,9 @@ module.exports = {
         var el = this.iframeBind
             ? this.el.contentWindow
             : this.el
-        el.removeEventListener(this.arg, this.handler)
+        if (this.handler) {
+            el.removeEventListener(this.arg, this.handler)
+        }
     },
 
     unbind: function () {
@@ -7175,13 +7426,19 @@ module.exports = {
     },
 
     update: function (value) {
-        var prop = this.prop
+        var prop = this.prop,
+            isImportant
+        /* jshint eqeqeq: true */
+        // cast possible numbers/booleans into strings
+        if (value != null) value += ''
         if (prop) {
-            var isImportant = value.slice(-10) === '!important'
-                ? 'important'
-                : ''
-            if (isImportant) {
-                value = value.slice(0, -10).trim()
+            if (value) {
+                isImportant = value.slice(-10) === '!important'
+                    ? 'important'
+                    : ''
+                if (isImportant) {
+                    value = value.slice(0, -10).trim()
+                }
             }
             this.el.style.setProperty(prop, value, isImportant)
             if (this.prefixed) {
@@ -18644,7 +18901,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
       PARTIAL_RIGHT_FLAG = 64;
 
   /** Used as the property name for wrapper metadata */
-  var EXPANDO = '__lodash@' + VERSION + '__';
+  var EXPANDO = '__lodash_' + VERSION.replace(/[-.]/g, '_') + '__';
 
   /** Used as the TypeError message for "Functions" methods */
   var FUNC_ERROR_TEXT = 'Expected a function';
@@ -18658,6 +18915,9 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
    * for more details.
    */
   var MAX_SAFE_INTEGER = Math.pow(2, 53) - 1;
+
+  /** Used as the internal argument placeholder */
+  var PLACEHOLDER = '__lodash_placeholder__';
 
   /** Used to generate unique IDs */
   var idCounter = 0;
@@ -18689,7 +18949,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
   /** Used to match `RegExp` flags from their coerced string values */
   var reFlags = /\w*$/;
 
-  /** Used to detected named functions */
+  /** Used to detect named functions */
   var reFuncName = /^\s*function[ \n\r\t]+\w/;
 
   /** Used to detect hexadecimal string values */
@@ -18748,7 +19008,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
   ];
 
   /** Used to make template sourceURLs easier to identify */
-  var templateCounter = 0;
+  var templateCounter = -1;
 
   /** `Object#toString` result references */
   var argsClass = '[object Arguments]',
@@ -19045,7 +19305,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
    * @returns {number} Returns the sort order indicator for `object`.
    */
   function compareAscending(object, other) {
-    return baseCompareAscending(object.criteria, other.criteria) || object.index - other.index;
+    return baseCompareAscending(object.criteria, other.criteria) || (object.index - other.index);
   }
 
   /**
@@ -19149,6 +19409,19 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
   }
 
   /**
+   * Used by `_.trimmedLeftIndex` and `_.trimmedRightIndex` to determine if a
+   * character code is whitespace.
+   *
+   * @private
+   * @param {number} charCode The character code to inspect.
+   * @returns {boolean} Returns `true` if `charCode` is whitespace, else `false`.
+   */
+  function isWhitespace(charCode) {
+    return ((charCode <= 160 && (charCode >= 9 && charCode <= 13) || charCode == 32 || charCode == 160) || charCode == 5760 || charCode == 6158 ||
+      (charCode >= 8192 && (charCode <= 8202 || charCode == 8232 || charCode == 8233 || charCode == 8239 || charCode == 8287 || charCode == 12288 || charCode == 65279)));
+  }
+
+  /**
    * Used by `_.trim` and `_.trimLeft` to get the index of the first non-whitespace
    * character of `string`.
    *
@@ -19160,13 +19433,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     var index = -1,
         length = string.length;
 
-    while (++index < length) {
-      var c = string.charCodeAt(index);
-      if (!((c <= 160 && (c >= 9 && c <= 13) || c == 32 || c == 160) || c == 5760 || c == 6158 ||
-          (c >= 8192 && (c <= 8202 || c == 8232 || c == 8233 || c == 8239 || c == 8287 || c == 12288 || c == 65279)))) {
-        break;
-      }
-    }
+    while (++index < length && isWhitespace(string.charCodeAt(index))) { }
     return index;
   }
 
@@ -19181,13 +19448,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
   function trimmedRightIndex(string) {
     var index = string.length;
 
-    while (index--) {
-      var c = string.charCodeAt(index);
-      if (!((c <= 160 && (c >= 9 && c <= 13) || c == 32 || c == 160) || c == 5760 || c == 6158 ||
-          (c >= 8192 && (c <= 8202 || c == 8232 || c == 8233 || c == 8239 || c == 8287 || c == 12288 || c == 65279)))) {
-        break;
-      }
-    }
+    while (index-- && isWhitespace(string.charCodeAt(index))) { }
     return index;
   }
 
@@ -19279,7 +19540,6 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
         bufferSlice = isNative(bufferSlice = ArrayBuffer && new ArrayBuffer(0).slice) && bufferSlice,
         ceil = Math.ceil,
         clearTimeout = context.clearTimeout,
-        Float64Array = isNative(Float64Array = context.Float64Array) && Float64Array,
         floor = Math.floor,
         getPrototypeOf = isNative(getPrototypeOf = Object.getPrototypeOf) && getPrototypeOf,
         hasOwnProperty = objectProto.hasOwnProperty,
@@ -19288,8 +19548,19 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
         Set = isNative(Set = context.Set) && Set,
         setTimeout = context.setTimeout,
         splice = arrayProto.splice,
-        Uint8Array = isNative(Uint8Array = context.Uint8Array) && Uint8Array,
-        unshift = arrayProto.unshift;
+        Uint8Array = isNative(Uint8Array = context.Uint8Array) && Uint8Array;
+
+    /** Used to clone array buffers */
+    var Float64Array = (function() {
+      // Safari 5 errors when using an array buffer to initialize a typed array
+      // where the array buffer's `byteLength` is not a multiple of the typed
+      // array's `BYTES_PER_ELEMENT`
+      try {
+        var func = isNative(func = context.Float64Array) && func,
+            result = new func(new ArrayBuffer(10), 0, 1) && func;
+      } catch(e) { }
+      return result;
+    }());
 
     /** Used to set metadata on functions */
     var defineProperty = (function() {
@@ -19316,7 +19587,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
         nativeRandom = Math.random;
 
     /** Used as the size, in bytes, of each Float64Array element */
-    var FLOAT64_BYTES_PER_ELEMENT = Float64Array && Float64Array.BYTES_PER_ELEMENT;
+    var FLOAT64_BYTES_PER_ELEMENT = Float64Array ? Float64Array.BYTES_PER_ELEMENT : 0;
 
     /** Used to lookup a built-in constructor by [[Class]] */
     var ctorByClass = {};
@@ -19364,14 +19635,14 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * `chain`, `chunk`, `compact`, `compose`, `concat`, `constant`, `countBy`,
      * `create`, `curry`, `debounce`, `defaults`, `defer`, `delay`, `difference`,
      * `drop`, `dropRight`, `dropRightWhile`, `dropWhile`, `filter`, `flatten`,
-     * `forEach`, `forEachRight`, `forIn`, `forInRight`, `forOwn`, `forOwnRight`,
-     * `functions`, `groupBy`, `indexBy`, `initial`, `intersection`, `invert`,
-     * `invoke`, `keys`, `keysIn`, `map`, `mapValues`, `matches`, `memoize`, `merge`,
-     * `mixin`, `negate`, `noop`, `omit`, `once`, `pairs`, `partial`, `partialRight`,
-     * `partition`, `pick`, `pluck`, `property`, `pull`, `pullAt`, `push`, `range`,
-     * `reject`, `remove`, `rest`, `reverse`, `shuffle`, `slice`, `sort`, `sortBy`,
-     * `splice`, `take`, `takeRight`, `takeRightWhile`, `takeWhile`, `tap`,
-     * `throttle`, `times`, `toArray`, `transform`, `union`, `uniq`, `unshift`,
+     * `flattenDeep`, `forEach`, `forEachRight`, `forIn`, `forInRight`, `forOwn`,
+     * `forOwnRight`, `functions`, `groupBy`, `indexBy`, `initial`, `intersection`,
+     * `invert`, `invoke`, `keys`, `keysIn`, `map`, `mapValues`, `matches`, `memoize`,
+     * `merge`, `mixin`, `negate`, `noop`, `omit`, `once`, `pairs`, `partial`,
+     * `partialRight`, `partition`, `pick`, `pluck`, `property`, `pull`, `pullAt`,
+     * `push`, `range`, `reject`, `remove`, `rest`, `reverse`, `shuffle`, `slice`,
+     * `sort`, `sortBy`, `splice`, `take`, `takeRight`, `takeRightWhile`, `takeWhile`,
+     * `tap`, `throttle`, `times`, `toArray`, `transform`, `union`, `uniq`, `unshift`,
      * `unzip`, `values`, `valuesIn`, `where`, `without`, `wrap`, `xor`, `zip`,
      * and `zipObject`
      *
@@ -19606,8 +19877,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
        * @type boolean
        */
       try {
-        support.nonEnumArgs = !(argsKey == '1' && hasOwnProperty.call(arguments, argsKey) &&
-          propertyIsEnumerable.call(arguments, argsKey));
+        support.nonEnumArgs = !(hasOwnProperty.call(arguments, 1) && propertyIsEnumerable.call(arguments, 1));
       } catch(e) {
         support.nonEnumArgs = true;
       }
@@ -19687,7 +19957,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      */
     function arrayEach(array, iterator) {
       var index = -1,
-          length = array ? array.length : 0;
+          length = array.length;
 
       while (++index < length) {
         if (iterator(array[index], index, array) === false) {
@@ -19707,7 +19977,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * @returns {Array} Returns `array`.
      */
     function arrayEachRight(array, iterator) {
-      var length = array ? array.length : 0;
+      var length = array.length;
 
       while (length--) {
         if (iterator(array[length], length, array) === false) {
@@ -19750,7 +20020,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      */
     function arrayMap(array, iterator) {
       var index = -1,
-          length = array ? array.length : 0,
+          length = array.length,
           result = Array(length);
 
       while (++index < length) {
@@ -19911,6 +20181,26 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     }
 
     /**
+     * The base implementation of `_.bindAll` without support for individual
+     * method name arguments.
+     *
+     * @private
+     * @param {Object} object The object to bind and assign the bound methods to.
+     * @param {string[]} methodNames The object method names to bind.
+     * @returns {Object} Returns `object`.
+     */
+    function baseBindAll(object, methodNames) {
+      var index = -1,
+          length = methodNames.length;
+
+      while (++index < length) {
+        var key = methodNames[index];
+        object[key] = createWrapper([object[key], BIND_FLAG, null, object]);
+      }
+      return object;
+    }
+
+    /**
      * The base implementation of `_.callback` without support for creating
      * "_.pluck" and "_.where" style callbacks.
      *
@@ -20046,7 +20336,8 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
               if (Ctor instanceof Ctor) {
                 Ctor = ctorByClass[className];
               }
-              return new Ctor(cloneBuffer(value.buffer), value.byteOffset, value.length);
+              var buffer = value.buffer;
+              return new Ctor(isDeep ? cloneBuffer(buffer) : buffer, value.byteOffset, value.length);
 
             case numberClass:
             case stringClass:
@@ -20122,18 +20413,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * sets its metadata.
      *
      * @private
-     * @param {Array} data The metadata array.
-     * @param {Function|string} data[0] The function or method name to reference.
-     * @param {number} data[1] The bitmask of flags to compose. See `createWrapper`
-     *  for more details.
-     * @param {number} data[2] The arity of `data[0]`.
-     * @param {*} [data[3]] The `this` binding of `data[0]`.
-     * @param {Array} [data[4]] An array of arguments to prepend to those
-     *  provided to the new function.
-     * @param {Array} [data[5]] An array of arguments to append to those
-     *  provided to the new function.
-     * @param {Array} [data[6]] An array of `data[4]` placeholder indexes.
-     * @param {Array} [data[7]] An array of `data[5]` placeholder indexes.
+     * @param {Array} data The metadata array. See `createWrapper` for more details.
      * @returns {Function} Returns the new function.
      */
     function baseCreateWrapper(data) {
@@ -20141,7 +20421,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
       if (bitmask == BIND_FLAG) {
         return setData(createBindWrapper(data), data);
       }
-      var partialHolders = data[6];
+      var partialHolders = data[5];
       if ((bitmask == PARTIAL_FLAG || bitmask == (BIND_FLAG | PARTIAL_FLAG)) && !partialHolders.length) {
         return setData(createPartialWrapper(data), data);
       }
@@ -20149,7 +20429,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
           arity = data[2],
           thisArg = data[3],
           partialArgs = data[4],
-          partialRightArgs = data[5],
+          partialRightArgs = data[6],
           partialRightHolders = data[7];
 
       var isBind = bitmask & BIND_FLAG,
@@ -20176,7 +20456,9 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
           args = composeArgsRight(partialRightArgs, partialRightHolders, args);
         }
         if (isCurry || isCurryRight) {
-          var newPartialHolders = getHolders(args);
+          var placeholder = wrapper.placeholder,
+              newPartialHolders = replaceHolders(args, placeholder);
+
           length -= newPartialHolders.length;
 
           if (length < arity) {
@@ -20186,10 +20468,13 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
             if (!isCurryBound) {
               bitmask &= ~(BIND_FLAG | BIND_KEY_FLAG);
             }
-            var newData = [func, bitmask, nativeMax(arity - length, 0), thisArg];
-            newData[isCurry ? 4 : 5] = args;
-            newData[isCurry ? 6 : 7] = newPartialHolders;
-            return baseCreateWrapper(newData);
+            var newData = [func, bitmask, nativeMax(arity - length, 0), thisArg, null, null];
+            newData[isCurry ? 4 : 6] = args;
+            newData[isCurry ? 5 : 7] = newPartialHolders;
+
+            var result = baseCreateWrapper(newData);
+            result.placeholder = placeholder;
+            return result;
           }
         }
         var thisBinding = isBind ? thisArg : this;
@@ -20216,7 +20501,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
       if (typeof arity != 'number') {
         arity = +arity || (func ? func.length : 0);
       }
-      return createWrapper(func, bitmask, arity);
+      return createWrapper([func, bitmask, arity]);
     }
 
     /**
@@ -20283,7 +20568,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
           iterable = toIterable(collection);
 
       while (++index < length) {
-        if (iterator(iterable[index], index, collection) === false) {
+        if (iterator(iterable[index], index, iterable) === false) {
           break;
         }
       }
@@ -20306,7 +20591,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
       }
       var iterable = toIterable(collection);
       while (length--) {
-        if (iterator(iterable[length], length, collection) === false) {
+        if (iterator(iterable[length], length, iterable) === false) {
           break;
         }
       }
@@ -20392,7 +20677,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     function baseFlatten(array, isDeep, isStrict, fromIndex) {
       var index = (fromIndex || 0) - 1,
           length = array.length,
-          resIndex = 0,
+          resIndex = -1,
           result = [];
 
       while (++index < length) {
@@ -20409,10 +20694,10 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
 
           result.length += valLength;
           while (++valIndex < valLength) {
-            result[resIndex++] = value[valIndex];
+            result[++resIndex] = value[valIndex];
           }
         } else if (!isStrict) {
-          result[resIndex++] = value;
+          result[++resIndex] = value;
         }
       }
       return result;
@@ -20843,15 +21128,19 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * @param {*} [thisArg] The `this` binding of `func`.
      * @returns {Function} Returns the new partially applied function.
      */
-    function basePartial(func, bitmask, args, thisArg) {
+    function basePartial(func, bitmask, args, holders, thisArg) {
       if (func) {
         var data = func[EXPANDO],
             arity = data ? data[2] : func.length;
 
         arity -= args.length;
       }
-      var isPartial = bitmask & PARTIAL_FLAG;
-      return createWrapper(func, bitmask, arity, thisArg, isPartial && args, !isPartial && args);
+      var isPartial = bitmask & PARTIAL_FLAG,
+          newData = [func, bitmask, arity, thisArg, null, null];
+
+      newData[isPartial ? 4 : 6] = args;
+      newData[isPartial ? 5 : 7] = holders;
+      return createWrapper(newData);
     }
 
     /**
@@ -20986,11 +21275,19 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
           high = array ? array.length : low;
 
       value = iterator(value);
+      var hintNum = typeof value == 'number' ||
+        (value != null && isFunction(value.valueOf) && typeof value.valueOf() == 'number');
+
       while (low < high) {
         var mid = (low + high) >>> 1,
-            computed = iterator(array[mid]);
+            computed = iterator(array[mid]),
+            setLow = retHighest ? computed <= value : computed < value;
 
-        if (retHighest ? computed <= value : computed < value) {
+        if (hintNum && typeof computed != 'undefined') {
+          computed = +computed;
+          setLow = computed != computed || setLow;
+        }
+        if (setLow) {
           low = mid + 1;
         } else {
           high = mid;
@@ -21208,9 +21505,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * with its associated `this` binding.
      *
      * @private
-     * @param {Array} data The metadata array.
-     * @param {Function|string} data[0] The function or method name to reference.
-     * @param {*} data[3] The `this` binding of `data[0]`.
+     * @param {Array} data The metadata array. See `createWrapper` for more details.
      * @returns {Function} Returns the new bound function.
      */
     function createBindWrapper(data) {
@@ -21289,22 +21584,15 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * with its associated partially applied arguments and optional `this` binding.
      *
      * @private
-     * @param {Array} data The metadata array.
-     * @param {Function|string} data[0] The function or method name to reference.
-     * @param {number} data[1] The bitmask of flags to compose. See `createWrapper`
-     *  for more details.
-     * @param {*} [data[3]] The `this` binding of `data[0]`.
-     * @param {Array} data[4] An array of arguments to prepend to those
-     *  provided to the new function.
+     * @param {Array} data The metadata array. See `createWrapper` for more details.
      * @returns {Function} Returns the new bound function.
      */
     function createPartialWrapper(data) {
       var func = data[0],
-          bitmask = data[1],
           thisArg = data[3],
           partialArgs = data[4];
 
-      var isBind = bitmask & BIND_FLAG,
+      var isBind = data[1] & BIND_FLAG,
           Ctor = createCtorWrapper(func);
 
       function wrapper() {
@@ -21328,29 +21616,35 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     }
 
     /**
-     * Creates a function that either curries or invokes `func` with an optional
+     * Creates a function that either curries or invokes `func` with optional
      * `this` binding and partially applied arguments.
      *
      * @private
-     * @param {Function|string} func The function or method name to reference.
-     * @param {number} bitmask The bitmask of flags to compose.
+     * @param {Array} data The metadata array.
+     * @param {Function|string} data[0] The function or method name to reference.
+     * @param {number} data[1] The bitmask of flags to compose.
      *  The bitmask may be composed of the following flags:
-     *  1  - `_.bind`
-     *  2  - `_.bindKey`
-     *  4  - `_.curry`
-     *  8  - `_.curryRight`
-     *  16 - `_.curry` or `_.curryRight` of a bound function
-     *  32 - `_.partial`
-     *  64 - `_.partialRight`
-     * @param {number} [arity] The arity of `func`.
-     * @param {*} [thisArg] The `this` binding of `func`.
-     * @param {Array} [partialArgs] An array of arguments to prepend to those
+     *   1  - `_.bind`
+     *   2  - `_.bindKey`
+     *   4  - `_.curry`
+     *   8  - `_.curryRight`
+     *   16 - `_.curry` or `_.curryRight` of a bound function
+     *   32 - `_.partial`
+     *   64 - `_.partialRight`
+     * @param {number} data[2] The arity of `data[0]`.
+     * @param {*} [data[3]] The `this` binding of `data[0]`.
+     * @param {Array} [data[4]] An array of arguments to prepend to those
      *  provided to the new function.
-     * @param {Array} [partialRightArgs] An array of arguments to append to those
+     * @param {Array} [data[5]] An array of `data[4]` placeholder indexes.
+     * @param {Array} [data[6]] An array of arguments to append to those
      *  provided to the new function.
+     * @param {Array} [data[7]] An array of `data[6]` placeholder indexes.
      * @returns {Function} Returns the new function.
      */
-    function createWrapper(func, bitmask, arity, thisArg, partialArgs, partialRightArgs) {
+    function createWrapper(data) {
+      var func = data[0],
+          bitmask = data[1];
+
       var isBind = bitmask & BIND_FLAG,
           isBindKey = bitmask & BIND_KEY_FLAG,
           isPartial = bitmask & PARTIAL_FLAG,
@@ -21359,35 +21653,43 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
       if (!isBindKey && !isFunction(func)) {
         throw new TypeError(FUNC_ERROR_TEXT);
       }
+      var arity = data[2],
+          partialArgs = data[4],
+          partialRightArgs = data[6];
+
       if (isPartial && !partialArgs.length) {
-        bitmask &= ~PARTIAL_FLAG;
-        isPartial = partialArgs = false;
+        isPartial = false;
+        data[1] = (bitmask &= ~PARTIAL_FLAG);
+        data[4] = data[5] = partialArgs = null;
       }
       if (isPartialRight && !partialRightArgs.length) {
-        bitmask &= ~PARTIAL_RIGHT_FLAG;
-        isPartialRight = partialRightArgs = false;
+        isPartialRight = false;
+        data[1] = (bitmask &= ~PARTIAL_RIGHT_FLAG);
+        data[6] = data[7] = partialRightArgs = null;
       }
-      var data = !isBindKey && func[EXPANDO];
-      if (data && data !== true) {
-        // shallow clone `data`
-        data = slice(data);
+      var funcData = !isBindKey && func[EXPANDO];
+      if (funcData && funcData !== true) {
+        // shallow clone `funcData`
+        funcData = slice(funcData);
 
         // clone partial left arguments
-        if (data[4]) {
-          data[4] = slice(data[4]);
+        if (funcData[4]) {
+          funcData[4] = slice(funcData[4]);
+          funcData[5] = slice(funcData[5]);
         }
         // clone partial right arguments
-        if (data[5]) {
-          data[5] = slice(data[5]);
+        if (funcData[6]) {
+          funcData[6] = slice(funcData[6]);
+          funcData[7] = slice(funcData[7]);
         }
         // set arity if provided
         if (typeof arity == 'number') {
-          data[2] = arity;
+          funcData[2] = arity;
         }
         // set `thisArg` if not previously bound
-        var bound = data[1] & BIND_FLAG;
+        var bound = funcData[1] & BIND_FLAG;
         if (isBind && !bound) {
-          data[3] = thisArg;
+          funcData[3] = data[3];
         }
         // set if currying a bound function
         if (!isBind && bound) {
@@ -21395,35 +21697,31 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
         }
         // append partial left arguments
         if (isPartial) {
-          if (data[4]) {
-            push.apply(data[4], partialArgs);
-          } else {
-            data[4] = partialArgs;
+          var funcPartialArgs = funcData[4];
+          if (funcPartialArgs) {
+            funcPartialArgs = composeArgs(funcPartialArgs, funcData[5], partialArgs);
           }
+          funcData[4] = funcPartialArgs || partialArgs;
+          funcData[5] = funcPartialArgs ? replaceHolders(funcPartialArgs, PLACEHOLDER) : data[5];
         }
         // prepend partial right arguments
         if (isPartialRight) {
-          if (data[5]) {
-            unshift.apply(data[5], partialRightArgs);
-          } else {
-            data[5] = partialRightArgs;
+          var funcPartialRightArgs = funcData[6];
+          if (funcPartialRightArgs) {
+            funcPartialRightArgs = composeArgsRight(funcPartialRightArgs, funcData[7], partialRightArgs);
           }
+          funcData[6] = funcPartialRightArgs || partialRightArgs;
+          funcData[7] = funcPartialRightArgs ? replaceHolders(funcPartialRightArgs, PLACEHOLDER) : data[7];
         }
         // merge flags
-        data[1] |= bitmask;
-        return createWrapper.apply(undefined, data);
-      }
-      if (isPartial) {
-        var partialHolders = getHolders(partialArgs);
-      }
-      if (isPartialRight) {
-        var partialRightHolders = getHolders(partialRightArgs);
+        funcData[1] |= bitmask;
+        return createWrapper(funcData);
       }
       if (arity == null) {
         arity = isBindKey ? 0 : func.length;
       }
-      arity = nativeMax(arity, 0);
-      return baseCreateWrapper([func, bitmask, arity, thisArg, partialArgs, partialRightArgs, partialHolders, partialRightHolders]);
+      data[2] = nativeMax(arity, 0);
+      return baseCreateWrapper(data);
     }
 
     /**
@@ -21439,26 +21737,6 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
       var result = lodash.callback || callback;
       result = result === callback ? baseCallback : result;
       return arguments.length ? result(func, thisArg, argCount) : result;
-    }
-
-    /**
-     * Finds the indexes of all placeholder elements in `array`.
-     *
-     * @private
-     * @param {Array} array The array to inspect.
-     * @returns {Array} Returns the new array of placeholder indexes.
-     */
-    function getHolders(array) {
-      var index = -1,
-          length = array.length,
-          result = [];
-
-      while (++index < length) {
-        if (array[index] === lodash) {
-          result.push(index);
-        }
-      }
-      return result;
     }
 
     /**
@@ -21542,6 +21820,29 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
         }
         return result;
       };
+    }
+
+    /**
+     * Replaces all `placeholder` elements in `array` with an internal placeholder
+     * and returns an array of their indexes.
+     *
+     * @private
+     * @param {Array} array The array to modify.
+     * @param {*} placeholder The placeholder to replace.
+     * @returns {Array} Returns the new array of placeholder indexes.
+     */
+    function replaceHolders(array, placeholder) {
+      var index = -1,
+          length = array.length,
+          result = [];
+
+      while (++index < length) {
+        if (array[index] === placeholder) {
+          array[index] = PLACEHOLDER;
+          result.push(index);
+        }
+      }
+      return result;
     }
 
     /**
@@ -21658,20 +21959,39 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     }
 
     /**
-     * Converts `collection` to an array if it is not an array-like value.
+     * Converts `value` to an array-like object if it is not one.
      *
      * @private
-     * @param {Array|Object|string} collection The collection to inspect.
-     * @returns {Array|Object} Returns the iterable object.
+     * @param {*} value The value to process.
+     * @returns {Array|Object} Returns the array-like object.
      */
-    function toIterable(collection) {
-      var length = collection ? collection.length : 0;
-      if (!(typeof length == 'number' && length > -1 && length <= MAX_SAFE_INTEGER)) {
-        return values(collection);
-      } else if (support.unindexedChars && isString(collection)) {
-        return collection.split('');
+    function toIterable(value) {
+      if (value == null) {
+        return [];
       }
-      return collection || [];
+      var length = value.length;
+      if (!(typeof length == 'number' && length > -1 && length <= MAX_SAFE_INTEGER)) {
+        return values(value);
+      }
+      value = toObject(value);
+      if (support.unindexedChars && isString(value)) {
+        var index = -1;
+        while (++index < length) {
+          value[index] = value.charAt(index);
+        }
+      }
+      return value;
+    }
+
+    /**
+     * Converts `value` to an object if it is not one.
+     *
+     * @private
+     * @param {*} value The value to process.
+     * @returns {Object} Returns the object.
+     */
+    function toObject(value) {
+      return isObject(value) ? value : Object(value);
     }
 
     /*--------------------------------------------------------------------------*/
@@ -21724,13 +22044,13 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     function compact(array) {
       var index = -1,
           length = array ? array.length : 0,
-          resIndex = 0,
+          resIndex = -1,
           result = [];
 
       while (++index < length) {
         var value = array[index];
         if (value) {
-          result[resIndex++] = value;
+          result[++resIndex] = value;
         }
       }
       return result;
@@ -21845,7 +22165,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * @param {Array} array The array to query.
      * @param {Function|Object|string} [predicate=identity] The function called
      *  per element.
-     * @param- {Object} [guard] Enables use as a callback for functions like `_.map`.
+     * @param {*} [thisArg] The `this` binding of `predicate`.
      * @returns {Array} Returns the slice of `array`.
      * @example
      *
@@ -21894,6 +22214,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * @param {Array} array The array to query.
      * @param {Function|Object|string} [predicate=identity] The function called
      *  per element.
+     * @param {*} [thisArg] The `this` binding of `predicate`.
      * @returns {Array} Returns the slice of `array`.
      * @example
      *
@@ -22082,6 +22403,24 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
         isDeep = false;
       }
       return baseFlatten(array, isDeep);
+    }
+
+    /**
+     * Recursively flattens a nested array.
+     *
+     * @static
+     * @memberOf _
+     * @category Array
+     * @param {Array} array The array to recursively flatten.
+     * @returns {Array} Returns the new flattened array.
+     * @example
+     *
+     * _.flattenDeep([1, [2], [3, [[4]]]]);
+     * // => [1, 2, 3, 4];
+     */
+    function flattenDeep(array) {
+      var length = array ? array.length : 0;
+      return length ? baseFlatten(array, true) : [];
     }
 
     /**
@@ -22415,21 +22754,17 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
 
       start = start == null ? 0 : (+start || 0);
       if (start < 0) {
-        start = nativeMax(length + start, 0);
-      } else if (start > length) {
-        start = length;
+        start = -start > length ? 0 : (length + start);
       }
-      end = typeof end == 'undefined' ? length : (+end || 0);
+      end = (typeof end == 'undefined' || end > length) ? length : (+end || 0);
       if (end < 0) {
-        end = nativeMax(length + end, 0);
-      } else if (end > length) {
-        end = length;
+        end += length;
       }
       length = start > end ? 0 : (end - start);
 
       var result = Array(length);
       while (++index < length) {
-        result[index] = array[start + index];
+        result[index] = array[index + start];
       }
       return result;
     }
@@ -22591,6 +22926,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * @param {Array} array The array to query.
      * @param {Function|Object|string} [predicate=identity] The function called
      *  per element.
+     * @param {*} [thisArg] The `this` binding of `predicate`.
      * @returns {Array} Returns the slice of `array`.
      * @example
      *
@@ -22639,6 +22975,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * @param {Array} array The array to query.
      * @param {Function|Object|string} [predicate=identity] The function called
      *  per element.
+     * @param {*} [thisArg] The `this` binding of `predicate`.
      * @returns {Array} Returns the slice of `array`.
      * @example
      *
@@ -23127,7 +23464,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => { '3': 2, '5': 1 }
      */
     var countBy = createAggregator(function(result, value, key) {
-      (hasOwnProperty.call(result, key) ? result[key]++ : result[key] = 1);
+      hasOwnProperty.call(result, key) ? ++result[key] : (result[key] = 1);
     });
 
     /**
@@ -23180,7 +23517,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     }
 
     /**
-     * Iterates over elements of `collection` returning an array of all elements
+     * Iterates over elements of `collection`, returning an array of all elements
      * the predicate returns truthy for. The predicate is bound to `thisArg` and
      * invoked with three arguments; (value, index|key, collection).
      *
@@ -23471,7 +23808,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     });
 
     /**
-     * Invokes the method named by `methodName` on each element in the collection
+     * Invokes the method named by `methodName` on each element in the collection,
      * returning an array of the results of each invoked method. Additional arguments
      * is provided to each invoked method. If `methodName` is a function it is
      * invoked for, and `this` bound to, each element in the collection.
@@ -23898,10 +24235,9 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => [3, 1]
      */
     function sample(collection, n, guard) {
-      collection = toIterable(collection);
-
-      var length = collection.length;
       if (n == null || guard) {
+        collection = toIterable(collection);
+        var length = collection.length;
         return length > 0 ? collection[baseRandom(0, length - 1)] : undefined;
       }
       var result = shuffle(collection);
@@ -24115,8 +24451,13 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => [2, 3, 4]
      */
     function toArray(collection) {
-      var iterable = toIterable(collection);
-      return iterable === collection ? slice(collection) : iterable;
+      var length = collection ? collection.length : 0;
+      if (typeof length == 'number' && length > -1 && length <= MAX_SAFE_INTEGER) {
+        return (support.unindexedChars && isString(collection))
+          ? collection.split('')
+          : slice(collection);
+      }
+      return values(collection);
     }
 
     /**
@@ -24243,9 +24584,13 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => 'hi fred'
      */
     function bind(func, thisArg) {
-      return arguments.length < 3
-        ? createWrapper(func, BIND_FLAG, null, thisArg)
-        : basePartial(func, BIND_FLAG | PARTIAL_FLAG, slice(arguments, 2), thisArg);
+      if (arguments.length < 3) {
+        return createWrapper([func, BIND_FLAG, null, thisArg]);
+      }
+      var args = slice(arguments, 2),
+          partialHolders = replaceHolders(args, bind.placeholder);
+
+      return basePartial(func, BIND_FLAG | PARTIAL_FLAG, args, partialHolders, thisArg);
     }
 
     /**
@@ -24280,26 +24625,6 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
           ? baseFlatten(arguments, false, false, 1)
           : functions(object)
       );
-    }
-
-    /**
-     * The base implementation of `_.bindAll` without support for individual
-     * method name arguments.
-     *
-     * @private
-     * @param {Object} object The object to bind and assign the bound methods to.
-     * @param {string[]} methodNames The object method names to bind.
-     * @returns {Object} Returns `object`.
-     */
-    function baseBindAll(object, methodNames) {
-      var index = -1,
-          length = methodNames.length;
-
-      while (++index < length) {
-        var key = methodNames[index];
-        object[key] = createWrapper(object[key], BIND_FLAG, null, object);
-      }
-      return object;
     }
 
     /**
@@ -24338,9 +24663,12 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => 'hiya fred!'
      */
     function bindKey(object, key) {
-      return arguments.length < 3
-        ? createWrapper(key, BIND_FLAG | BIND_KEY_FLAG, null, object)
-        : createWrapper(key, BIND_FLAG | BIND_KEY_FLAG | PARTIAL_FLAG, null, object, slice(arguments, 2));
+      var data = [key, BIND_FLAG | BIND_KEY_FLAG, null, object];
+      if (arguments.length > 2) {
+        var args = slice(arguments, 2);
+        data.push(args, replaceHolders(args, bindKey.placeholder));
+      }
+      return createWrapper(data);
     }
 
     /**
@@ -24428,7 +24756,9 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => [1, 2, 3]
      */
     function curry(func, arity) {
-      return baseCurry(func, CURRY_FLAG, arity);
+      var result = baseCurry(func, CURRY_FLAG, arity);
+      result.placeholder = curry.placeholder;
+      return result;
     }
 
     /**
@@ -24459,7 +24789,9 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => [1, 2, 3]
      */
     function curryRight(func, arity) {
-      return baseCurry(func, CURRY_RIGHT_FLAG, arity);
+      var result = baseCurry(func, CURRY_RIGHT_FLAG, arity);
+      result.placeholder = curryRight.placeholder;
+      return result;
     }
 
     /**
@@ -24473,6 +24805,9 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * Note: If `leading` and `trailing` options are `true`, `func` is called on
      * the trailing edge of the timeout only if the the debounced function is
      * invoked more than once during the `wait` timeout.
+     *
+     * See [David Corbacho's article](http://drupalmotion.com/article/debounce-and-throttle-visual-explanation)
+     * for details over the differences between `_.debounce` and `_.throttle`.
      *
      * @static
      * @memberOf _
@@ -24805,7 +25140,10 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => 'hello fred'
      */
     function partial(func) {
-      return basePartial(func, PARTIAL_FLAG, slice(arguments, 1));
+      var args = slice(arguments, 1),
+          partialHolders = replaceHolders(args, partial.placeholder);
+
+      return basePartial(func, PARTIAL_FLAG, args, partialHolders);
     }
 
     /**
@@ -24840,7 +25178,10 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => { 'a': { 'b': { 'c': 1, 'd': 2 } } }
      */
     function partialRight(func) {
-      return basePartial(func, PARTIAL_RIGHT_FLAG, slice(arguments, 1));
+      var args = slice(arguments, 1),
+          partialHolders = replaceHolders(args, partialRight.placeholder);
+
+      return basePartial(func, PARTIAL_RIGHT_FLAG, args, partialHolders);
     }
 
     /**
@@ -24854,6 +25195,9 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * Note: If `leading` and `trailing` options are `true`, `func` is called on
      * the trailing edge of the timeout only if the the throttled function is
      * invoked more than once during the `wait` timeout.
+     *
+     * See [David Corbacho's article](http://drupalmotion.com/article/debounce-and-throttle-visual-explanation)
+     * for details over the differences between `_.throttle` and `_.debounce`.
      *
      * @static
      * @memberOf _
@@ -24894,7 +25238,6 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
       debounceOptions.leading = leading;
       debounceOptions.maxWait = +wait;
       debounceOptions.trailing = trailing;
-
       return debounce(func, wait, debounceOptions);
     }
 
@@ -24920,7 +25263,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => '<p>fred, barney, &amp; pebbles</p>'
      */
     function wrap(value, wrapper) {
-      return createWrapper(wrapper, PARTIAL_FLAG, null, null, [value]);
+      return basePartial(wrapper, PARTIAL_FLAG, [value], []);
     }
 
     /*--------------------------------------------------------------------------*/
@@ -25115,7 +25458,6 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * @category Object
      * @param {Object} object The destination object.
      * @param {...Object} [sources] The source objects.
-     * @param- {Object} [guard] Enables use as a callback for functions like `_.reduce`.
      * @returns {Object} Returns the destination object.
      * @example
      *
@@ -25945,7 +26287,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => ['x', 'y'] (property order is not guaranteed across environments)
      */
     var keys = !nativeKeys ? shimKeys : function(object) {
-      object = Object(object);
+      object = toObject(object);
 
       var Ctor = object.constructor,
           length = object.length;
@@ -25982,7 +26324,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
       if (object == null) {
         return [];
       }
-      object = Object(object);
+      object = toObject(object);
 
       var length = object.length;
       length = (typeof length == 'number' && length > 0 &&
@@ -26166,7 +26508,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
         return basePick(object, negate(getCallback(predicate, thisArg, 3)));
       }
       var omitProps = baseFlatten(arguments, false, false, 1);
-      return basePick(Object(object), baseDifference(keysIn(object), arrayMap(omitProps, String)));
+      return basePick(toObject(object), baseDifference(keysIn(object), arrayMap(omitProps, String)));
     }
 
     /**
@@ -26227,7 +26569,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
       if (object == null) {
         return {};
       }
-      return basePick(Object(object),
+      return basePick(toObject(object),
         typeof predicate == 'function'
           ? getCallback(predicate, thisArg, 3)
           : baseFlatten(arguments, false, false, 1)
@@ -26710,6 +27052,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * @param {RegExp} [options.interpolate] The "interpolate" delimiter.
      * @param {string} [options.sourceURL] The sourceURL of the template's compiled source.
      * @param {string} [options.variable] The data object variable name.
+     * @param- {Object} [otherOptions] Enables the legacy `options` param signature.
      * @returns {Function} Returns the compiled template function.
      * @example
      *
@@ -26777,13 +27120,13 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      *   };\
      * ');
      */
-    function template(string, options) {
+    function template(string, options, otherOptions) {
       // based on John Resig's `tmpl` implementation
       // http://ejohn.org/blog/javascript-micro-templating/
       // and Laura Doktorova's doT.js
       // https://github.com/olado/doT
       var settings = lodash.templateSettings;
-      options = assign({}, options, settings, assignOwnDefaults);
+      options = assign({}, otherOptions || options, settings, assignOwnDefaults);
       string = String(string == null ? '' : string);
 
       var imports = assign({}, options.imports, settings.imports, assignOwnDefaults),
@@ -26806,7 +27149,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
 
       // use a sourceURL for easier debugging
       // http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/#toc-sourceurl
-      var sourceURL = options.sourceURL || ('/lodash/template/source[' + (templateCounter++) + ']');
+      var sourceURL = options.sourceURL || ('/lodash/template/source[' + (++templateCounter) + ']');
       sourceURL = sourceURL ? ('\n/*\n//# sourceURL=' + sourceURL + '\n*/') : '';
 
       string.replace(reDelimiters, function(match, escapeValue, interpolateValue, esTemplateValue, evaluateValue, offset) {
@@ -27391,19 +27734,27 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * @category Utility
      * @param {string} value The value to parse.
      * @param {number} [radix] The radix to interpret `value` by.
+     * @param- {Object} [guard] Enables use as a callback for functions like `_.map`.
      * @returns {number} Returns the converted integer.
      * @example
      *
      * _.parseInt('08');
      * // => 8
      */
-    var parseInt = nativeParseInt(whitespace + '08') == 8 ? nativeParseInt : function(value, radix) {
-      // Firefox < 21 and Opera < 15 follow ES3 for `parseInt` and
-      // Chrome fails to trim leading <BOM> whitespace characters.
-      // See https://code.google.com/p/v8/issues/detail?id=3109
-      value = trim(value);
-      return nativeParseInt(value, +radix || (reHexPrefix.test(value) ? 16 : 10));
-    };
+    function parseInt(value, radix, guard) {
+      return nativeParseInt(value, guard ? 0 : radix);
+    }
+    // fallback for environments with pre-ES5 implementations
+    if (nativeParseInt(whitespace + '08') != 8) {
+      parseInt = function(value, radix, guard) {
+        // Firefox < 21 and Opera < 15 follow ES3 for `parseInt` and
+        // Chrome fails to trim leading <BOM> whitespace characters.
+        // See https://code.google.com/p/v8/issues/detail?id=3109
+        value = trim(value);
+        radix = guard ? 0 : +radix;
+        return nativeParseInt(value, radix || (reHexPrefix.test(value) ? 16 : 10));
+      };
+    }
 
     /**
      * Creates a "_.pluck" style function which returns the `key` value of a
@@ -27463,6 +27814,11 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      * // => a floating-point number between 1.2 and 5.2
      */
     function random(min, max, floating) {
+      // enables use as a callback for functions like `_.map`
+      var type = typeof max;
+      if ((type == 'number' || type == 'string') && floating && floating[max] === min) {
+        max = floating = null;
+      }
       var noMin = min == null,
           noMax = max == null;
 
@@ -27528,6 +27884,12 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
      */
     function range(start, end, step) {
       start = +start || 0;
+
+      // enables use as a callback for functions like `_.map`
+      var type = typeof end;
+      if ((type == 'number' || type == 'string') && step && step[end] === start) {
+        end = step = null;
+      }
       step = step == null ? 1 : (+step || 0);
 
       if (end == null) {
@@ -27656,6 +28018,9 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     // ensure `new lodashWrapper` is an instance of `lodash`
     lodashWrapper.prototype = lodash.prototype;
 
+    // assign default placeholders
+    bind.placeholder = bindKey.placeholder = curry.placeholder = curryRight.placeholder = partial.placeholder = partialRight.placeholder = lodash;
+
     // add functions that return wrapped values when chaining
     lodash.after = after;
     lodash.assign = assign;
@@ -27685,6 +28050,7 @@ require.register("lodash-lodash/dist/lodash.compat.js", function(exports, requir
     lodash.dropWhile = dropWhile;
     lodash.filter = filter;
     lodash.flatten = flatten;
+    lodash.flattenDeep = flattenDeep;
     lodash.forEach = forEach;
     lodash.forEachRight = forEachRight;
     lodash.forIn = forIn;
@@ -30844,10 +31210,6 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
 
                 return Q.all(requests);
             },
-            getValidTests: function(tests){
-                tests
-
-            },
             renderComparizonGraph: function(){
                 var that = this;
 
@@ -30958,7 +31320,7 @@ require.register("grunt-wpt-page/index.js", function(exports, require, module){
 
 
 require.register("grunt-wpt-page/index.html", function(exports, require, module){
-module.exports = '<!DOCTYPE html>\n<html>\n<head>\n    <link rel=\'stylesheet\' href=\'//cdn.oesmith.co.uk/morris-0.4.3.min.css\'>\n    <link rel=\'stylesheet\' href=\'build/build.css\'>\n\n    <title>Grunt WebPageTest</title>\n</head>\n<body data-spy="scroll" data-target=".nav-graph">\n\n    <div class="container">\n        <nav class="navbar navbar-default" role="navigation">\n            <!-- Brand and toggle get grouped for better mobile display -->\n            <div class="navbar-header">\n                <a class="navbar-brand" href="#">Grunt WebPageTest</a>\n            </div>\n        </nav>\n    </div>\n\n    <div id="app" class="container">\n        <div class="row">\n            <div class="col-md-2 sidebar" >\n                <div data-spy="affix" data-offset-top="60" class="nav-graph">\n                    <h2>Location</h2>\n                    <select id="locations" class="form-control" v-model="location" >\n                        <option v-repeat="locations" value="{{$key}}" >{{$value}}</option>\n                    </select>\n\n                    <h2>URL</h2>\n                    <select id="urls" class="form-control" v-model="url" >\n                        <option v-repeat="urls" value="{{$key}}" >{{$key}}</option>\n                    </select>\n\n                    <h2>Results</h2>\n                    <ul class="nav nav-pills nav-stacked">\n                        <li><a href="#responseTime">Response Time</a></li>\n                        <li><a href="#contentsSize">Contents Size</a></li>\n                        <li><a href="#contentsRequests">Contents Requests</a></li>\n                    </ul>\n                </div>\n            </div>\n            <div class="col-md-10">\n\n                <h2 id="responseTime" >Response Time</h2>\n                <h3>FirstView</h3>\n                <h4>Average</h4>\n                <div id="firstAverage" class="graphs"></div>\n\n                <h4>Median</h4>\n                <div id="firstMedian" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <h4>Average</h4>\n                <div id="repeatAverage" class="graphs"></div>\n\n                <h4>Median</h4>\n                <div id="repeatMedian" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <h4>Average</h4>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="2">FirstView</th>\n                            <th colspan="2">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat="labels.responseTime.average">{{$value}}</th>\n                            <th v-repeat="labels.responseTime.average">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="averageTable">\n                        <tr v-repeat="tests" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td v-repeat="labels.responseTime.average">{{response.data.average.firstView[$key] | ms}}</td>\n                            <td v-repeat="labels.responseTime.average">{{response.data.average.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n                <h4>Median</h4>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="6">FirstView</th>\n                            <th colspan="6">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat="labels.responseTime.median">{{$value}}</th>\n                            <th v-repeat="labels.responseTime.median">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="medianTable">\n                        <tr v-repeat="tests">\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td v-repeat="labels.responseTime.median">{{response.data.median.firstView[$key] | ms}}</td>\n                            <td v-repeat="labels.responseTime.median">{{response.data.median.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n\n                <h2 id="contentsSize" >Contents Size</h2>\n                <h3>FirstView</h3>\n                <div id="firstContentsSize" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <div id="repeatContentsSize" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="8">FirstView</th>\n                            <th colspan="8">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="contentsSizeTable">\n                        <tr v-repeat="tests" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].bytes | KB}}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].bytes | KB}}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n                <h2 id="contentsRequests" >Contents Requests</h2>\n                <h3>FirstView</h3>\n                <div id="firstContentsRequests" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <div id="repeatContentsRequests" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="8">FirstView</th>\n                            <th colspan="8">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="contentsRequestsTable">\n                        <tr v-repeat="tests" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalRequests }}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].requests }}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalRequests }}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].requests }}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n            </div>\n        </div>\n    </div>\n\n    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>\n    <script src="//cdnjs.cloudflare.com/ajax/libs/raphael/2.1.0/raphael-min.js"></script>\n    <script src="//cdn.oesmith.co.uk/morris-0.5.1.min.js"></script>\n    <script src=\'build/build.js\'></script>\n    <script>\n        require(\'grunt-wpt-page\')\n    </script>\n</body>\n</html>';
+module.exports = '<!DOCTYPE html>\n<html>\n<head>\n    <link rel=\'stylesheet\' href=\'build/build.css\'>\n\n    <title>Grunt WebPageTest</title>\n</head>\n<body data-spy="scroll" data-target=".nav-graph">\n\n    <div class="container">\n        <nav class="navbar navbar-default" role="navigation">\n            <!-- Brand and toggle get grouped for better mobile display -->\n            <div class="navbar-header">\n                <a class="navbar-brand" href="#">Grunt WebPageTest</a>\n            </div>\n        </nav>\n    </div>\n\n    <div id="app" class="container">\n        <div class="row">\n            <div class="col-md-2 sidebar" >\n                <div data-spy="affix" data-offset-top="60" class="nav-graph">\n                    <h2>Location</h2>\n                    <select id="locations" class="form-control" v-model="location" >\n                        <option v-repeat="locations" value="{{$key}}" >{{$value}}</option>\n                    </select>\n\n                    <h2>URL</h2>\n                    <select id="urls" class="form-control" v-model="url" >\n                        <option v-repeat="urls" value="{{$key}}" >{{$key}}</option>\n                    </select>\n\n                    <h2>Results</h2>\n                    <ul class="nav nav-pills nav-stacked">\n                        <li><a href="#responseTime">Response Time</a></li>\n                        <li><a href="#contentsSize">Contents Size</a></li>\n                        <li><a href="#contentsRequests">Contents Requests</a></li>\n                    </ul>\n                </div>\n            </div>\n            <div class="col-md-10">\n\n                <h2 id="responseTime" >Response Time</h2>\n                <h3>FirstView</h3>\n                <h4>Average</h4>\n                <div id="firstAverage" class="graphs"></div>\n\n                <h4>Median</h4>\n                <div id="firstMedian" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <h4>Average</h4>\n                <div id="repeatAverage" class="graphs"></div>\n\n                <h4>Median</h4>\n                <div id="repeatMedian" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <h4>Average</h4>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="2">FirstView</th>\n                            <th colspan="2">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat="labels.responseTime.average">{{$value}}</th>\n                            <th v-repeat="labels.responseTime.average">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="averageTable">\n                        <tr v-repeat="tests" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td v-repeat="labels.responseTime.average">{{response.data.average.firstView[$key] | ms}}</td>\n                            <td v-repeat="labels.responseTime.average">{{response.data.average.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n                <h4>Median</h4>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="6">FirstView</th>\n                            <th colspan="6">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat="labels.responseTime.median">{{$value}}</th>\n                            <th v-repeat="labels.responseTime.median">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="medianTable">\n                        <tr v-repeat="tests">\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td v-repeat="labels.responseTime.median">{{response.data.median.firstView[$key] | ms}}</td>\n                            <td v-repeat="labels.responseTime.median">{{response.data.median.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n\n                <h2 id="contentsSize" >Contents Size</h2>\n                <h3>FirstView</h3>\n                <div id="firstContentsSize" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <div id="repeatContentsSize" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="8">FirstView</th>\n                            <th colspan="8">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="contentsSizeTable">\n                        <tr v-repeat="tests" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].bytes | KB}}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].bytes | KB}}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n                <h2 id="contentsRequests" >Contents Requests</h2>\n                <h3>FirstView</h3>\n                <div id="firstContentsRequests" class="graphs"></div>\n\n                <h3>RepeatView</h3>\n                <div id="repeatContentsRequests" class="graphs"></div>\n\n                <h3>Detail</h3>\n                <table class="table table-striped table-bordered">\n                    <thead>\n                        <tr>\n                            <th rowspan="2">Date</th>\n                            <th rowspan="2">ID</th>\n                            <th colspan="8">FirstView</th>\n                            <th colspan="8">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat="labels.contents">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id="contentsRequestsTable">\n                        <tr v-repeat="tests" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalRequests }}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].requests }}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalRequests }}</td>\n                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].requests }}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n            </div>\n        </div>\n    </div>\n\n    <script src=\'build/lib.js\'></script>\n    <script src=\'build/build.js\'></script>\n    <script>\n        require(\'grunt-wpt-page\')\n    </script>\n</body>\n</html>\n';
 });
 require.alias("moment-moment/moment.js", "grunt-wpt-page/deps/moment/moment.js");
 require.alias("moment-moment/moment.js", "grunt-wpt-page/deps/moment/index.js");
@@ -30975,6 +31337,7 @@ require.alias("yyx990803-vue/src/binding.js", "grunt-wpt-page/deps/vue/src/bindi
 require.alias("yyx990803-vue/src/observer.js", "grunt-wpt-page/deps/vue/src/observer.js");
 require.alias("yyx990803-vue/src/directive.js", "grunt-wpt-page/deps/vue/src/directive.js");
 require.alias("yyx990803-vue/src/exp-parser.js", "grunt-wpt-page/deps/vue/src/exp-parser.js");
+require.alias("yyx990803-vue/src/template-parser.js", "grunt-wpt-page/deps/vue/src/template-parser.js");
 require.alias("yyx990803-vue/src/text-parser.js", "grunt-wpt-page/deps/vue/src/text-parser.js");
 require.alias("yyx990803-vue/src/deps-parser.js", "grunt-wpt-page/deps/vue/src/deps-parser.js");
 require.alias("yyx990803-vue/src/filters.js", "grunt-wpt-page/deps/vue/src/filters.js");
