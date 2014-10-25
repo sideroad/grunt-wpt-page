@@ -1,15 +1,13 @@
-/*global Morris: true */
+/*global Morris, Q */
 
-(function( Morris ){
+(function( Morris, Q ){
     'use strict';
 
     var $ = require('jquery'),
         _ = require('lodash'),
         request = require('superagent'),
         moment = require('moment'),
-        bootstrap = require('components-bootstrap'),
-        Q = require('q'),
-        Vue = require('vue'),
+        bootstrap = require('components-bootstrap'),        Vue = require('vue'),
         renderMorris = function(data){
             $("#"+data.element).html('');
             Morris.Area({
@@ -61,7 +59,7 @@
                 that.renderGraph();
             });
             this.$watch('results', function(){
-                that.renderGraph();
+                // that.renderGraph();
             });
 
             request.get('tests/results.json')
@@ -242,4 +240,4 @@
         }
     });
 
-})(Morris);
+})(Morris, Q);

@@ -21,11 +21,12 @@ module.exports = function(grunt) {
       },
     },
 
-    clean: ['build', 'components'],
+    clean: ['build'],
 
     concat: {
       pages: {
         src: [
+          'q.min.js',
           'jquery.min.js',
           'morris-0.5.1.min.js',
           'raphael-min.js'

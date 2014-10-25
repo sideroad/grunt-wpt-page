@@ -5,12 +5,11 @@
   "keywords": [],
   "dependencies": {
     "moment/moment": "*",
-    "yyx990803/vue": "*",
+    "yyx990803/vue": "^0.10.6",
     "components/jquery": "*",
     "components/bootstrap": "*",
     "lodash/lodash": "*",
-    "visionmedia/superagent": "*",
-    "microjs/q": "*"
+    "visionmedia/superagent": "*"
   },
   "development": {},
   "license": "MIT",
@@ -22,8 +21,8 @@
   ],
   "styles": [
     "morris-0.4.3.min.css",
-    "components/components-bootstrap/css/bootstrap.min.css",
-    "components/components-bootstrap/css/bootstrap-theme.min.css",
+    "components/components/bootstrap/3.2.0/css/bootstrap.min.css",
+    "components/components/bootstrap/3.2.0/css/bootstrap-theme.min.css",
     "grunt-wpt-page.css"
   ]
 }
