@@ -26,22 +26,11 @@ module.exports = function(grunt) {
     concat: {
       pages: {
         src: [
-          'q.js',
           'jquery.min.js',
           'morris-0.5.1.min.js',
           'raphael-min.js'
         ],
         dest: 'build/lib.js'
-      }
-    },
-
-    // Build component
-    componentbuild: {
-      pages: {
-        options: {
-          install: true
-        },
-        src: 'build'
       }
     }
 
@@ -51,9 +40,8 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-contrib-concat');
-  grunt.loadNpmTasks('grunt-component-build');
 
   // By default, lint and run all tests.
-  grunt.registerTask('default', ['jshint', 'componentbuild', 'concat']);
+  grunt.registerTask('default', ['jshint', 'clean', 'concat']);
 
 };
