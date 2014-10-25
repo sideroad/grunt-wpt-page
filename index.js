@@ -1,6 +1,6 @@
-/*global Morris: true */
+/*global Morris, Q */
 
-(function( Morris ){
+(function( Morris, Q ){
     'use strict';
 
     var $ = require('jquery'),
@@ -8,7 +8,6 @@
         request = require('superagent'),
         moment = require('moment'),
         bootstrap = require('components-bootstrap'),
-        Q = require('q'),
         Vue = require('vue'),
         renderMorris = function(data){
             $("#"+data.element).html('');
@@ -16,8 +15,8 @@
               element: data.element,
               data: data.data,
               xkey: 'date',
-              ykeys: data.keys,
-              labels: data.labels,
+              ykeys: data.keys.reverse(),
+              labels: data.labels.reverse(),
               behaveLikeLine: true
             });
         };
@@ -59,9 +58,11 @@
 
             this.$watch('url', function(){
                 that.renderGraph();
+                that.renderComparizonGraph();
             });
             this.$watch('results', function(){
                 that.renderGraph();
+                that.renderComparizonGraph();
             });
 
             request.get('tests/results.json')
@@ -89,7 +90,9 @@
             allTestIds: function(){
                 return _.chain(this.urls).map(function(val, key){ 
                     return val;
-                }).flatten().value();
+                }).flatten().map(function(val){
+                    return typeof val === 'string' ? val : false;
+                }).compact().value();
             }
         },
         filters: {
@@ -122,7 +125,7 @@
                 var requests = [],
                     that = this;
 
-                _(this.testIds).each(function(testId){
+                _(testIds).each(function(testId){
                    var dfd = Q.defer();
 
                     request.get('tests/'+testId+'.json')
@@ -154,19 +157,13 @@
             renderComparizonGraph: function(){
                 var that = this;
 
-                this.getTests(this.testIds).done(function(tests){
+                this.getTests(this.allTestIds).done(function(tests){
                     tests = _.compact(tests);
 
                     that.$set('tests', tests);
 
-                    that.renderResponseTimeGraph( tests, 'average', 'first' );
-                    that.renderResponseTimeGraph( tests, 'median', 'first' );
-                    that.renderResponseTimeGraph( tests, 'average', 'repeat' );
-                    that.renderResponseTimeGraph( tests, 'median', 'repeat' );
-                    that.renderContentsSizeGraph( tests, 'first' );
-                    that.renderContentsSizeGraph( tests, 'repeat' );
-                    that.renderContentsRequestsGraph( tests, 'first' );
-                    that.renderContentsRequestsGraph( tests, 'repeat' );
+                    that.renderComparizonResponseTimeGraph( tests, 'average', 'first', 'fullyLoaded' );
+                    that.renderComparizonResponseTimeGraph( tests, 'average', 'repeat', 'fullyLoaded' );
                 });
             },
             renderGraph: function(){
@@ -187,6 +184,23 @@
                     that.renderContentsRequestsGraph( tests, 'repeat' );
                 });
 
+            },
+            renderComparizonResponseTimeGraph: function(tests, type, view, key){
+
+                var urls = _.keys( this.urls );
+
+                renderMorris({
+                    data: _.map(tests, function(test){
+                        var obj = {};
+                        obj[test.response.data.testUrl] = test.response.data[type][view+'View'][key];
+                        obj.date = new Date( test.response.data.completed ).getTime();
+                        console.log(obj);
+                        return obj;
+                    }),
+                    keys: urls,
+                    labels: urls,
+                    element: $.camelCase( view + '-' + type + '-' + key)
+                });
             },
             renderResponseTimeGraph: function(tests, type, view){
                 renderMorris({
@@ -242,4 +256,4 @@
         }
     });
 
-})(Morris);
+})(Morris, Q);
