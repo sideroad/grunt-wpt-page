@@ -28,8 +28,9 @@ module.exports = function(grunt) {
         src: [
           'q.min.js',
           'jquery.min.js',
-          'morris-0.5.1.min.js',
-          'raphael-min.js'
+          'highslide-full.min.js',
+          'highslide.config.js',
+          'highcharts.js'
         ],
         dest: 'build/lib.js'
       }

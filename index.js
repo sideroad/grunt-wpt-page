@@ -1,23 +1,62 @@
-/*global Morris, Q */
+/*global data_graphic, Q, jQuery, hs, Highcharts */
 
-(function( Morris, Q ){
+(function( Q, $, hs, Highcharts ){
     'use strict';
 
-    var $ = require('jquery'),
-        _ = require('lodash'),
+    var _ = require('lodash'),
         request = require('superagent'),
         moment = require('moment'),
-        bootstrap = require('components-bootstrap'),        Vue = require('vue'),
-        renderMorris = function(data){
-            $("#"+data.element).html('');
-            Morris.Area({
-              element: data.element,
-              data: data.data,
-              xkey: 'date',
-              ykeys: data.keys,
-              labels: data.labels,
-              behaveLikeLine: true
+        bootstrap = require('components-bootstrap'),
+        Vue = require('vue'),
+        renderGraph = function(data){
+            var series = _.map(data.keys, function(key, index){
+                return {
+                    name: data.labels[index],
+                    data: _.map(data.data, function(item){
+                        return {
+                            x: item.date.getTime(),
+                            y: Number(item[key]),
+                            summary: item.summary,
+                            id: item.id
+                        };
+                    })
+                };
             });
+            $("#"+data.element).html('')
+                               .highcharts({
+                                  xAxis: {
+                                    type: 'datetime'
+                                  },
+                                  tooltip: {
+                                    shared: true,
+                                    crosshairs: true
+                                  },
+                                  series: series,
+                                  plotOptions: {
+                                        series: {
+                                            cursor: 'pointer',
+                                            point: {
+                                                events: {
+                                                    click: function (e) {
+                                                        console.log(this);
+                                                        hs.htmlExpand(null, {
+                                                            pageOrigin: {
+                                                                x: e.pageX,
+                                                                y: e.pageY
+                                                            },
+                                                            headingText: this.series.name,
+                                                            maincontentText: '<a href="'+this.summary+'" >'+this.id+'</a>',
+                                                            width: 200
+                                                        });
+                                                    }
+                                                }
+                                            },
+                                            marker: {
+                                                lineWidth: 1
+                                            }
+                                        }
+                                    }
+                                });
         };
 
     var app = new Vue({
@@ -25,8 +64,26 @@
         data: {
             results: {},
             locations: {},
+            statics: 'average',
+            average: true,
+            median: false,
+            colspan: {
+                average: 2,
+                median: 6
+            },
+            staticsList: [
+                {
+                    key: 'average',
+                    value: 'Average'
+                },
+                {
+                    key: 'median',
+                    value: 'Median'
+                }
+            ],
             tests: {},
             labels: {
+                SpeedIndex: 'Speed Index',
                 responseTime: {
                     median: {
                         domContentLoadedEventStart: 'DOM Content Ready Start',
@@ -56,10 +113,13 @@
             var that = this;
 
             this.$watch('url', function(){
-                that.renderGraph();
+                that.renderGraphs();
             });
-            this.$watch('results', function(){
-                // that.renderGraph();
+            this.$watch('statics', function(value){
+                that.median = false;
+                that.average = false;
+                that[value] = true;
+                that.renderGraphs();
             });
 
             request.get('tests/results.json')
@@ -149,7 +209,7 @@
 
                 return Q.all(requests);
             },
-            renderComparizonGraph: function(){
+            renderGraphs: function(){
                 var that = this;
 
                 this.getTests(this.testIds).done(function(tests){
@@ -157,40 +217,27 @@
 
                     that.$set('tests', tests);
 
-                    that.renderResponseTimeGraph( tests, 'average', 'first' );
-                    that.renderResponseTimeGraph( tests, 'median', 'first' );
-                    that.renderResponseTimeGraph( tests, 'average', 'repeat' );
-                    that.renderResponseTimeGraph( tests, 'median', 'repeat' );
+                    that.renderResponseTimeGraph( tests, that.statics, 'first' );
+                    that.renderResponseTimeGraph( tests, that.statics, 'repeat' );
+
+                    that.renderSpeedIndexGraph( tests, that.statics, 'first' );
+                    that.renderSpeedIndexGraph( tests, that.statics, 'repeat' );
+
                     that.renderContentsSizeGraph( tests, 'first' );
                     that.renderContentsSizeGraph( tests, 'repeat' );
-                    that.renderContentsRequestsGraph( tests, 'first' );
-                    that.renderContentsRequestsGraph( tests, 'repeat' );
-                });
-            },
-            renderGraph: function(){
-                var that = this;
 
-                this.getTests(this.testIds).done(function(tests){
-                    tests = _.compact(tests);
-
-                    that.$set('tests', tests);
-
-                    that.renderResponseTimeGraph( tests, 'average', 'first' );
-                    that.renderResponseTimeGraph( tests, 'median', 'first' );
-                    that.renderResponseTimeGraph( tests, 'average', 'repeat' );
-                    that.renderResponseTimeGraph( tests, 'median', 'repeat' );
-                    that.renderContentsSizeGraph( tests, 'first' );
-                    that.renderContentsSizeGraph( tests, 'repeat' );
                     that.renderContentsRequestsGraph( tests, 'first' );
                     that.renderContentsRequestsGraph( tests, 'repeat' );
                 });
 
             },
             renderResponseTimeGraph: function(tests, type, view){
-                renderMorris({
+                renderGraph({
                     data: _.map(tests, function(test){
-                        var obj = test.response.data[type][view+'View'] || {};
-                        obj.date = new Date( test.response.data.completed ).getTime();
+                        var obj = _.extend({}, test.response.data[type][view+'View']);
+                        obj.date = new Date( test.response.data.completed );
+                        obj.summary = _.extend({}, test).response.data.summary;
+                        obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
                     keys: _(this.labels.responseTime[type]).keys().value(),
@@ -198,8 +245,22 @@
                     element: $.camelCase( view + '-' + type)
                 });
             },
+            renderSpeedIndexGraph: function(tests, type, view){
+                renderGraph({
+                    data: _.map(tests, function(test){
+                        var obj = _.extend({}, test.response.data[type][view+'View']);
+                        obj.date = new Date( test.response.data.completed );
+                        obj.summary = _.extend({}, test).response.data.summary;
+                        obj.id = _.extend({}, test).response.data.testId;
+                        return obj;
+                    }),
+                    keys: ['SpeedIndex'],
+                    labels: [this.labels.SpeedIndex],
+                    element: $.camelCase( view + '-' + type + '-speedIndex')
+                });
+            },
             renderContentsSizeGraph: function(tests, view){
-                renderMorris({
+                renderGraph({
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
@@ -210,7 +271,9 @@
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0).toFixed(1);
-                        obj.date = new Date( test.response.data.completed ).getTime();
+                        obj.date = new Date( test.response.data.completed );
+                        obj.summary = _.extend({}, test).response.data.summary;
+                        obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
@@ -219,7 +282,7 @@
                 });
             },
             renderContentsRequestsGraph: function(tests, view){
-                renderMorris({
+                renderGraph({
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
@@ -229,7 +292,9 @@
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0);
-                        obj.date = new Date( test.response.data.completed ).getTime();
+                        obj.date = new Date( test.response.data.completed );
+                        obj.summary = _.extend({}, test).response.data.summary;
+                        obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
@@ -240,4 +305,4 @@
         }
     });
 
-})(Morris, Q);
+})(Q, jQuery, hs, Highcharts);

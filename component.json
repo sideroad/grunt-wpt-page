@@ -20,9 +20,9 @@
     "index.html"
   ],
   "styles": [
-    "morris-0.4.3.min.css",
     "components/components/bootstrap/3.2.0/css/bootstrap.min.css",
     "components/components/bootstrap/3.2.0/css/bootstrap-theme.min.css",
+    "highslide.css",
     "grunt-wpt-page.css"
   ]
 }

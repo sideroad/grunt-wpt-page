@@ -26,20 +26,82 @@ function require(name) {
 require.loader = 'component';
 
 /**
+ * Internal helper object, contains a sorting function for semantiv versioning
+ */
+require.helper = {};
+require.helper.semVerSort = function(a, b) {
+  var aArray = a.version.split('.');
+  var bArray = b.version.split('.');
+  for (var i=0; i<aArray.length; ++i) {
+    var aInt = parseInt(aArray[i], 10);
+    var bInt = parseInt(bArray[i], 10);
+    if (aInt === bInt) {
+      var aLex = aArray[i].substr((""+aInt).length);
+      var bLex = bArray[i].substr((""+bInt).length);
+      if (aLex === '' && bLex !== '') return 1;
+      if (aLex !== '' && bLex === '') return -1;
+      if (aLex !== '' && bLex !== '') return aLex > bLex ? 1 : -1;
+      continue;
+    } else if (aInt > bInt) {
+      return 1;
+    } else {
+      return -1;
+    }
+  }
+  return 0;
+}
+
+/**
  * Find and require a module which name starts with the provided name.
  * If multiple modules exists, the highest semver is used. 
- * This function should be used for remote dependencies.
- */
+ * This function can only be used for remote dependencies.
 
-require.latest = function (name) {
-  var available = Object.keys(require.modules).filter(function(moduleName) {
-    return moduleName.indexOf(name) !== -1
-  });
-  if (available.length === 0) {
+ * @param {String} name - module name: `user~repo`
+ * @param {Boolean} returnPath - returns the canonical require path if true, 
+ *                               otherwise it returns the epxorted module
+ */
+require.latest = function (name, returnPath) {
+  function showError(name) {
     throw new Error('failed to find latest module of "' + name + '"');
   }
-  return require(available.sort().pop());
+  // only remotes with semvers, ignore local files conataining a '/'
+  var versionRegexp = /(.*)~(.*)@v?(\d+\.\d+\.\d+[^\/]*)$/;
+  var remoteRegexp = /(.*)~(.*)/;
+  if (!remoteRegexp.test(name)) showError(name);
+  var moduleNames = Object.keys(require.modules);
+  var semVerCandidates = [];
+  var otherCandidates = []; // for instance: name of the git branch
+  for (var i=0; i<moduleNames.length; i++) {
+    var moduleName = moduleNames[i];
+    if (new RegExp(name + '@').test(moduleName)) {
+        var version = moduleName.substr(name.length+1);
+        var semVerMatch = versionRegexp.exec(moduleName);
+        if (semVerMatch != null) {
+          semVerCandidates.push({version: version, name: moduleName});
+        } else {
+          otherCandidates.push({version: version, name: moduleName});
+        } 
+    }
+  }
+  if (semVerCandidates.concat(otherCandidates).length === 0) {
+    showError(name);
+  }
+  if (semVerCandidates.length > 0) {
+    var module = semVerCandidates.sort(require.helper.semVerSort).pop().name;
+    if (returnPath === true) {
+      return module;
+    }
+    return require(module);
+  }
+  // if the build contains more than one branch of the same module
+  // you should not use this funciton
+  var module = otherCandidates.pop().name;
+  if (returnPath === true) {
+    return module;
+  }
+  return require(module);
 }
+
 /**
  * Registered modules.
  */
@@ -27266,26 +27328,65 @@ module.exports = request;
 });
 
 require.register("grunt-wpt-page", function (exports, module) {
-/*global Morris, Q */
+/*global data_graphic, Q, jQuery, hs, Highcharts */
 
-(function( Morris, Q ){
+(function( Q, $, hs, Highcharts ){
     'use strict';
 
-    var $ = require('components~jquery@2.1.1'),
-        _ = require('lodash~lodash@2.4.1'),
+    var _ = require('lodash~lodash@2.4.1'),
         request = require('visionmedia~superagent@0.20.0'),
         moment = require('moment~moment@2.8.3'),
-        bootstrap = require('components~bootstrap@3.2.0'),        Vue = require('yyx990803~vue@v0.10.6'),
-        renderMorris = function(data){
-            $("#"+data.element).html('');
-            Morris.Area({
-              element: data.element,
-              data: data.data,
-              xkey: 'date',
-              ykeys: data.keys,
-              labels: data.labels,
-              behaveLikeLine: true
+        bootstrap = require('components~bootstrap@3.2.0'),
+        Vue = require('yyx990803~vue@v0.10.6'),
+        renderGraph = function(data){
+            var series = _.map(data.keys, function(key, index){
+                return {
+                    name: data.labels[index],
+                    data: _.map(data.data, function(item){
+                        return {
+                            x: item.date.getTime(),
+                            y: Number(item[key]),
+                            summary: item.summary,
+                            id: item.id
+                        };
+                    })
+                };
             });
+            $("#"+data.element).html('')
+                               .highcharts({
+                                  xAxis: {
+                                    type: 'datetime'
+                                  },
+                                  tooltip: {
+                                    shared: true,
+                                    crosshairs: true
+                                  },
+                                  series: series,
+                                  plotOptions: {
+                                        series: {
+                                            cursor: 'pointer',
+                                            point: {
+                                                events: {
+                                                    click: function (e) {
+                                                        console.log(this);
+                                                        hs.htmlExpand(null, {
+                                                            pageOrigin: {
+                                                                x: e.pageX,
+                                                                y: e.pageY
+                                                            },
+                                                            headingText: this.series.name,
+                                                            maincontentText: '<a href="'+this.summary+'" >'+this.id+'</a>',
+                                                            width: 200
+                                                        });
+                                                    }
+                                                }
+                                            },
+                                            marker: {
+                                                lineWidth: 1
+                                            }
+                                        }
+                                    }
+                                });
         };
 
     var app = new Vue({
@@ -27293,8 +27394,26 @@ require.register("grunt-wpt-page", function (exports, module) {
         data: {
             results: {},
             locations: {},
+            statics: 'average',
+            average: true,
+            median: false,
+            colspan: {
+                average: 2,
+                median: 6
+            },
+            staticsList: [
+                {
+                    key: 'average',
+                    value: 'Average'
+                },
+                {
+                    key: 'median',
+                    value: 'Median'
+                }
+            ],
             tests: {},
             labels: {
+                SpeedIndex: 'Speed Index',
                 responseTime: {
                     median: {
                         domContentLoadedEventStart: 'DOM Content Ready Start',
@@ -27324,10 +27443,13 @@ require.register("grunt-wpt-page", function (exports, module) {
             var that = this;
 
             this.$watch('url', function(){
-                that.renderGraph();
+                that.renderGraphs();
             });
-            this.$watch('results', function(){
-                // that.renderGraph();
+            this.$watch('statics', function(value){
+                that.median = false;
+                that.average = false;
+                that[value] = true;
+                that.renderGraphs();
             });
 
             request.get('tests/results.json')
@@ -27417,7 +27539,7 @@ require.register("grunt-wpt-page", function (exports, module) {
 
                 return Q.all(requests);
             },
-            renderComparizonGraph: function(){
+            renderGraphs: function(){
                 var that = this;
 
                 this.getTests(this.testIds).done(function(tests){
@@ -27425,40 +27547,27 @@ require.register("grunt-wpt-page", function (exports, module) {
 
                     that.$set('tests', tests);
 
-                    that.renderResponseTimeGraph( tests, 'average', 'first' );
-                    that.renderResponseTimeGraph( tests, 'median', 'first' );
-                    that.renderResponseTimeGraph( tests, 'average', 'repeat' );
-                    that.renderResponseTimeGraph( tests, 'median', 'repeat' );
+                    that.renderResponseTimeGraph( tests, that.statics, 'first' );
+                    that.renderResponseTimeGraph( tests, that.statics, 'repeat' );
+
+                    that.renderSpeedIndexGraph( tests, that.statics, 'first' );
+                    that.renderSpeedIndexGraph( tests, that.statics, 'repeat' );
+
                     that.renderContentsSizeGraph( tests, 'first' );
                     that.renderContentsSizeGraph( tests, 'repeat' );
-                    that.renderContentsRequestsGraph( tests, 'first' );
-                    that.renderContentsRequestsGraph( tests, 'repeat' );
-                });
-            },
-            renderGraph: function(){
-                var that = this;
 
-                this.getTests(this.testIds).done(function(tests){
-                    tests = _.compact(tests);
-
-                    that.$set('tests', tests);
-
-                    that.renderResponseTimeGraph( tests, 'average', 'first' );
-                    that.renderResponseTimeGraph( tests, 'median', 'first' );
-                    that.renderResponseTimeGraph( tests, 'average', 'repeat' );
-                    that.renderResponseTimeGraph( tests, 'median', 'repeat' );
-                    that.renderContentsSizeGraph( tests, 'first' );
-                    that.renderContentsSizeGraph( tests, 'repeat' );
                     that.renderContentsRequestsGraph( tests, 'first' );
                     that.renderContentsRequestsGraph( tests, 'repeat' );
                 });
 
             },
             renderResponseTimeGraph: function(tests, type, view){
-                renderMorris({
+                renderGraph({
                     data: _.map(tests, function(test){
-                        var obj = test.response.data[type][view+'View'] || {};
-                        obj.date = new Date( test.response.data.completed ).getTime();
+                        var obj = _.extend({}, test.response.data[type][view+'View']);
+                        obj.date = new Date( test.response.data.completed );
+                        obj.summary = _.extend({}, test).response.data.summary;
+                        obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
                     keys: _(this.labels.responseTime[type]).keys().value(),
@@ -27466,8 +27575,22 @@ require.register("grunt-wpt-page", function (exports, module) {
                     element: $.camelCase( view + '-' + type)
                 });
             },
+            renderSpeedIndexGraph: function(tests, type, view){
+                renderGraph({
+                    data: _.map(tests, function(test){
+                        var obj = _.extend({}, test.response.data[type][view+'View']);
+                        obj.date = new Date( test.response.data.completed );
+                        obj.summary = _.extend({}, test).response.data.summary;
+                        obj.id = _.extend({}, test).response.data.testId;
+                        return obj;
+                    }),
+                    keys: ['SpeedIndex'],
+                    labels: [this.labels.SpeedIndex],
+                    element: $.camelCase( view + '-' + type + '-speedIndex')
+                });
+            },
             renderContentsSizeGraph: function(tests, view){
-                renderMorris({
+                renderGraph({
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
@@ -27478,7 +27601,9 @@ require.register("grunt-wpt-page", function (exports, module) {
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0).toFixed(1);
-                        obj.date = new Date( test.response.data.completed ).getTime();
+                        obj.date = new Date( test.response.data.completed );
+                        obj.summary = _.extend({}, test).response.data.summary;
+                        obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
@@ -27487,7 +27612,7 @@ require.register("grunt-wpt-page", function (exports, module) {
                 });
             },
             renderContentsRequestsGraph: function(tests, view){
-                renderMorris({
+                renderGraph({
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
@@ -27497,7 +27622,9 @@ require.register("grunt-wpt-page", function (exports, module) {
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0);
-                        obj.date = new Date( test.response.data.completed ).getTime();
+                        obj.date = new Date( test.response.data.completed );
+                        obj.summary = _.extend({}, test).response.data.summary;
+                        obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
@@ -27508,9 +27635,9 @@ require.register("grunt-wpt-page", function (exports, module) {
         }
     });
 
-})(Morris, Q);
+})(Q, jQuery, hs, Highcharts);
 });
 
-require.define("grunt-wpt-page/index.html", "<!DOCTYPE html>\n<html>\n<head>\n    <link rel='stylesheet' href='build/build.css'>\n\n    <title>Grunt WebPageTest</title>\n</head>\n<body data-spy=\"scroll\" data-target=\".nav-graph\">\n\n    <div class=\"container\">\n        <nav class=\"navbar navbar-default\" role=\"navigation\">\n            <!-- Brand and toggle get grouped for better mobile display -->\n            <div class=\"navbar-header\">\n                <a class=\"navbar-brand\" href=\"#\">Grunt WebPageTest</a>\n            </div>\n        </nav>\n    </div>\n\n    <div id=\"app\" class=\"container\">\n        <div class=\"row\">\n            <div class=\"col-md-2 sidebar\" >\n                <div data-spy=\"affix\" data-offset-top=\"60\" class=\"nav-graph\">\n                    <h2>Location</h2>\n                    <select id=\"locations\" class=\"form-control\" v-model=\"location\" >\n                        <option v-repeat=\"locations\" value=\"{{$key}}\" >{{$value}}</option>\n                    </select>\n\n                    <h2>URL</h2>\n                    <select id=\"urls\" class=\"form-control\" v-model=\"url\" >\n                        <option v-repeat=\"urls\" value=\"{{$key}}\" >{{$key}}</option>\n                    </select>\n\n                    <h2>Results</h2>\n                    <ul class=\"nav nav-pills nav-stacked\">\n                        <li><a href=\"#responseTime\">Response Time</a></li>\n                        <li><a href=\"#contentsSize\">Contents Size</a></li>\n                        <li><a href=\"#contentsRequests\">Contents Requests</a></li>\n                    </ul>\n                </div>\n            </div>\n            <div class=\"col-md-10\">\n\n                <h2 id=\"responseTime\" >Response Time</h2>\n                <h3>FirstView</h3>\n                <h4>Average</h4>\n                <div id=\"firstAverage\" class=\"graphs\"></div>\n\n                <h4>Median</h4>\n                <div id=\"firstMedian\" class=\"graphs\"></div>\n\n                <h3>RepeatView</h3>\n                <h4>Average</h4>\n                <div id=\"repeatAverage\" class=\"graphs\"></div>\n\n                <h4>Median</h4>\n                <div id=\"repeatMedian\" class=\"graphs\"></div>\n\n                <h3>Detail</h3>\n                <h4>Average</h4>\n                <table class=\"table table-striped table-bordered\">\n                    <thead>\n                        <tr>\n                            <th rowspan=\"2\">Date</th>\n                            <th rowspan=\"2\">ID</th>\n                            <th colspan=\"2\">FirstView</th>\n                            <th colspan=\"2\">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat=\"labels.responseTime.average\">{{$value}}</th>\n                            <th v-repeat=\"labels.responseTime.average\">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id=\"averageTable\">\n                        <tr v-repeat=\"tests\" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr=\"href: response.data.summary\">{{response.data.testId}}</a></td>\n                            <td v-repeat=\"labels.responseTime.average\">{{response.data.average.firstView[$key] | ms}}</td>\n                            <td v-repeat=\"labels.responseTime.average\">{{response.data.average.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n                <h4>Median</h4>\n                <table class=\"table table-striped table-bordered\">\n                    <thead>\n                        <tr>\n                            <th rowspan=\"2\">Date</th>\n                            <th rowspan=\"2\">ID</th>\n                            <th colspan=\"6\">FirstView</th>\n                            <th colspan=\"6\">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat=\"labels.responseTime.median\">{{$value}}</th>\n                            <th v-repeat=\"labels.responseTime.median\">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id=\"medianTable\">\n                        <tr v-repeat=\"tests\">\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr=\"href: response.data.summary\">{{response.data.testId}}</a></td>\n                            <td v-repeat=\"labels.responseTime.median\">{{response.data.median.firstView[$key] | ms}}</td>\n                            <td v-repeat=\"labels.responseTime.median\">{{response.data.median.repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n\n                <h2 id=\"contentsSize\" >Contents Size</h2>\n                <h3>FirstView</h3>\n                <div id=\"firstContentsSize\" class=\"graphs\"></div>\n\n                <h3>RepeatView</h3>\n                <div id=\"repeatContentsSize\" class=\"graphs\"></div>\n\n                <h3>Detail</h3>\n                <table class=\"table table-striped table-bordered\">\n                    <thead>\n                        <tr>\n                            <th rowspan=\"2\">Date</th>\n                            <th rowspan=\"2\">ID</th>\n                            <th colspan=\"8\">FirstView</th>\n                            <th colspan=\"8\">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat=\"labels.contents\">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat=\"labels.contents\">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id=\"contentsSizeTable\">\n                        <tr v-repeat=\"tests\" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr=\"href: response.data.summary\">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat=\"labels.contents\" >{{response.data.median.firstView.breakdown[$key].bytes | KB}}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat=\"labels.contents\" >{{response.data.median.repeatView.breakdown[$key].bytes | KB}}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n                <h2 id=\"contentsRequests\" >Contents Requests</h2>\n                <h3>FirstView</h3>\n                <div id=\"firstContentsRequests\" class=\"graphs\"></div>\n\n                <h3>RepeatView</h3>\n                <div id=\"repeatContentsRequests\" class=\"graphs\"></div>\n\n                <h3>Detail</h3>\n                <table class=\"table table-striped table-bordered\">\n                    <thead>\n                        <tr>\n                            <th rowspan=\"2\">Date</th>\n                            <th rowspan=\"2\">ID</th>\n                            <th colspan=\"8\">FirstView</th>\n                            <th colspan=\"8\">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat=\"labels.contents\">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat=\"labels.contents\">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id=\"contentsRequestsTable\">\n                        <tr v-repeat=\"tests\" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr=\"href: response.data.summary\">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalRequests }}</td>\n                            <td v-repeat=\"labels.contents\" >{{response.data.median.firstView.breakdown[$key].requests }}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalRequests }}</td>\n                            <td v-repeat=\"labels.contents\" >{{response.data.median.repeatView.breakdown[$key].requests }}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n            </div>\n        </div>\n    </div>\n\n    <script src='build/lib.js'></script>\n    <script src='build/build.js'></script>\n    <script>\n        require('grunt-wpt-page')\n    </script>\n</body>\n</html>\n");
+require.define("grunt-wpt-page/index.html", "<!DOCTYPE html>\n<html>\n<head>\n    <link rel='stylesheet' href='build/build.css'>\n\n    <title>Grunt WebPageTest</title>\n</head>\n<body data-spy=\"scroll\" data-target=\".nav-graph\">\n\n    <div class=\"container\">\n        <nav class=\"navbar navbar-default\" role=\"navigation\">\n            <!-- Brand and toggle get grouped for better mobile display -->\n            <div class=\"navbar-header\">\n                <a class=\"navbar-brand\" href=\"#\">Grunt WebPageTest</a>\n            </div>\n        </nav>\n    </div>\n\n    <div id=\"app\" class=\"container\">\n        <div class=\"row\">\n            <div class=\"col-md-2 sidebar\" >\n                <div data-spy=\"affix\" data-offset-top=\"60\" class=\"nav-graph\">\n                    <h2>Location</h2>\n                    <select id=\"locations\" class=\"form-control\" v-model=\"location\" >\n                        <option v-repeat=\"locations\" value=\"{{$key}}\" >{{$value}}</option>\n                    </select>\n\n                    <h2>URL</h2>\n                    <select id=\"urls\" class=\"form-control\" v-model=\"url\" >\n                        <option v-repeat=\"urls\" value=\"{{$key}}\" >{{$key}}</option>\n                    </select>\n\n                    <h2>Statics</h2>\n                    <select id=\"statics\" class=\"form-control\" v-model=\"statics\" >\n                        <option v-repeat=\"staticsList\" value=\"{{key}}\">{{value}}</option>\n                    </select>\n\n                    <h2>Results</h2>\n                    <ul class=\"nav nav-pills nav-stacked\">\n                        <li><a href=\"#responseTime\">Response Time</a></li>\n                        <li><a href=\"#contentsSize\">Contents Size</a></li>\n                        <li><a href=\"#contentsRequests\">Contents Requests</a></li>\n                        <li><a href=\"#speedIndex\">SpeedIndex</a></li>\n                    </ul>\n                </div>\n            </div>\n            <div class=\"col-md-10\">\n\n                <h2 id=\"responseTime\" >Response Time</h2>\n\n                <h3>FirstView</h3>\n                <div v-show=\"average\">\n                    <div id=\"firstAverage\" class=\"graphs\" ></div>\n                </div>\n\n                <div v-show=\"median\">\n                    <div id=\"firstMedian\" class=\"graphs\" ></div>\n                </div>\n\n                <h3>RepeatView</h3>\n                <div v-show=\"average\">\n                    <div id=\"repeatAverage\" class=\"graphs\"></div>\n                </div>\n\n                <div v-show=\"median\">\n                    <div id=\"repeatMedian\" class=\"graphs\"></div>\n                </div>\n\n                <h3>Detail</h3>\n                <table class=\"table table-striped table-bordered\">\n                    <thead>\n                        <tr>\n                            <th rowspan=\"2\">Date</th>\n                            <th rowspan=\"2\">ID</th>\n                            <th colspan=\"{{colspan[statics]}}\">FirstView</th>\n                            <th colspan=\"{{colspan[statics]}}\">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th v-repeat=\"labels.responseTime[statics]\">{{$value}}</th>\n                            <th v-repeat=\"labels.responseTime[statics]\">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id=\"averageTable\">\n                        <tr v-repeat=\"tests\" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr=\"href: response.data.summary\">{{response.data.testId}}</a></td>\n                            <td v-repeat=\"labels.responseTime[statics]\">{{response.data[statics].firstView[$key] | ms}}</td>\n                            <td v-repeat=\"labels.responseTime[statics]\">{{response.data[statics].repeatView[$key] | ms}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n                <h2 id=\"contentsSize\" >Contents Size</h2>\n                <h3>FirstView</h3>\n                <div id=\"firstContentsSize\" class=\"graphs\"></div>\n\n                <h3>RepeatView</h3>\n                <div id=\"repeatContentsSize\" class=\"graphs\"></div>\n\n                <h3>Detail</h3>\n                <table class=\"table table-striped table-bordered\">\n                    <thead>\n                        <tr>\n                            <th rowspan=\"2\">Date</th>\n                            <th rowspan=\"2\">ID</th>\n                            <th colspan=\"8\">FirstView</th>\n                            <th colspan=\"8\">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat=\"labels.contents\">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat=\"labels.contents\">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id=\"contentsSizeTable\">\n                        <tr v-repeat=\"tests\" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr=\"href: response.data.summary\">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat=\"labels.contents\" >{{response.data.median.firstView.breakdown[$key].bytes | KB}}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalBytes | KB}}</td>\n                            <td v-repeat=\"labels.contents\" >{{response.data.median.repeatView.breakdown[$key].bytes | KB}}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n                <h2 id=\"contentsRequests\" >Contents Requests</h2>\n                <h3>FirstView</h3>\n                <div id=\"firstContentsRequests\" class=\"graphs\"></div>\n\n                <h3>RepeatView</h3>\n                <div id=\"repeatContentsRequests\" class=\"graphs\"></div>\n\n                <h3>Detail</h3>\n                <table class=\"table table-striped table-bordered\">\n                    <thead>\n                        <tr>\n                            <th rowspan=\"2\">Date</th>\n                            <th rowspan=\"2\">ID</th>\n                            <th colspan=\"8\">FirstView</th>\n                            <th colspan=\"8\">RepeatView</th>\n                        </tr>\n                        <tr>\n                            <th>Total</th>\n                            <th v-repeat=\"labels.contents\">{{$value}}</th>\n                            <th>Total</th>\n                            <th v-repeat=\"labels.contents\">{{$value}}</th>\n                        </tr>\n                    </thead>\n                    <tbody id=\"contentsRequestsTable\">\n                        <tr v-repeat=\"tests\" >\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr=\"href: response.data.summary\">{{response.data.testId}}</a></td>\n                            <td>{{response.data.median.firstView.breakdown | totalRequests }}</td>\n                            <td v-repeat=\"labels.contents\" >{{response.data.median.firstView.breakdown[$key].requests }}</td>\n                            <td>{{response.data.median.repeatView.breakdown | totalRequests }}</td>\n                            <td v-repeat=\"labels.contents\" >{{response.data.median.repeatView.breakdown[$key].requests }}</td>\n                         </tr>\n                    </tbody>\n                </table>\n\n\n                <h2 id=\"speedIndex\" >Speed Index</h2>\n\n                <h3>FirstView</h3>\n                <div v-show=\"average\">\n                    <div id=\"firstAverageSpeedIndex\" class=\"graphs\"></div>\n                </div>\n\n                <div v-show=\"median\">\n                    <div id=\"firstMedianSpeedIndex\" class=\"graphs\"></div>\n                </div>\n\n                <h3>RepeatView</h3>\n                <div v-show=\"average\">\n                    <div id=\"repeatAverageSpeedIndex\" class=\"graphs\"></div>\n                </div>\n\n                <div v-show=\"median\">\n                    <div id=\"repeatMedianSpeedIndex\" class=\"graphs\"></div>\n                </div>\n\n                <h3>Detail</h3>\n                <table class=\"table table-striped table-bordered\">\n                    <thead>\n                        <tr>\n                            <th>Date</th>\n                            <th>ID</th>\n                            <th>FirstView</th>\n                            <th>RepeatView</th>\n                        </tr>\n                    </thead>\n                    <tbody id=\"medianTable\">\n                        <tr v-repeat=\"tests\">\n                            <td>{{response.data.completed}}</td>\n                            <td><a v-attr=\"href: response.data.summary\">{{response.data.testId}}</a></td>\n                            <td>{{response.data[statics].firstView.SpeedIndex}}</td>\n                            <td>{{response.data[statics].repeatView.SpeedIndex}}</td>\n                        </tr>\n                    </tbody>\n                </table>\n\n            </div>\n        </div>\n    </div>\n\n    <script src='build/lib.js'></script>\n    <script src='build/build.js'></script>\n    <script>\n        require('grunt-wpt-page')\n    </script>\n</body>\n</html>\n");
 
 require("grunt-wpt-page");
