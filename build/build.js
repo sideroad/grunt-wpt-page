@@ -27585,8 +27585,8 @@ require.register("grunt-wpt-page", function (exports, module) {
                     }),
                     valueSuffix: ' msec',
                     ytitle: 'Time (msec)',
-                    keys: _(this.labels.responseTime[type]).keys().value(),
-                    labels: _(this.labels.responseTime[type]).values().value(),
+                    keys: _(this.labels.responseTime[type]).keys().value().reverse(),
+                    labels: _(this.labels.responseTime[type]).values().value().reverse(),
                     element: $.camelCase( view + '-' + type)
                 });
             },
@@ -27624,8 +27624,8 @@ require.register("grunt-wpt-page", function (exports, module) {
                     }),
                     valueSuffix: ' KByte',                      
                     ytitle: 'Size (KByte)',
-                    keys: _(this.labels.contents).keys().value().concat(['total']),
-                    labels: _(this.labels.contents).values().value().concat(['Total']),
+                    keys: _(this.labels.contents).keys().value().concat(['total']).reverse(),
+                    labels: _(this.labels.contents).values().value().concat(['Total']).reverse(),
                     element: view + 'ContentsSize'
                 });
             },
@@ -27646,8 +27646,8 @@ require.register("grunt-wpt-page", function (exports, module) {
                         return obj;
                     }),
                     ytitle: 'Requests',
-                    keys: _(this.labels.contents).keys().value().concat(['total']),
-                    labels: _(this.labels.contents).values().value().concat(['Total']),
+                    keys: _(this.labels.contents).keys().value().concat(['total']).reverse(),
+                    labels: _(this.labels.contents).values().value().concat(['Total']).reverse(),
                     element: view + 'ContentsRequests'
                 });
             }
