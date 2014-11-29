@@ -11,7 +11,6 @@
         Vue = require('vue'),
         renderGraph = function(data){
             $("#"+data.element).html('');
-            console.log(data);
             data_graphic({
               target: "#"+data.element,
               legend_target: "#"+data.element+"Legend",
@@ -19,7 +18,8 @@
               data: data.data,
               x_accessor: "date",
               y_accessor: data.keys,
-              y_extended_ticks: true
+              y_extended_ticks: true,
+              interpolate: "monotone"
             });
         };
 

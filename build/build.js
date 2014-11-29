@@ -28457,9 +28457,8 @@ require.register("grunt-wpt-page", function (exports, module) {
         moment = require('moment~moment@2.8.3'),
         bootstrap = require('components~bootstrap@3.2.0'),
         Vue = require('yyx990803~vue@v0.10.6'),
-        renderMorris = function(data){
+        renderGraph = function(data){
             $("#"+data.element).html('');
-            console.log(data);
             data_graphic({
               target: "#"+data.element,
               legend_target: "#"+data.element+"Legend",
@@ -28467,7 +28466,8 @@ require.register("grunt-wpt-page", function (exports, module) {
               data: data.data,
               x_accessor: "date",
               y_accessor: data.keys,
-              y_extended_ticks: true
+              y_extended_ticks: true,
+              interpolate: "monotone"
             });
         };
 
@@ -28507,10 +28507,10 @@ require.register("grunt-wpt-page", function (exports, module) {
             var that = this;
 
             this.$watch('url', function(){
-                that.renderGraph();
+                that.renderGraphs();
             });
             this.$watch('results', function(){
-                // that.renderGraph();
+                // that.renderGraphs();
             });
 
             request.get('tests/results.json')
@@ -28618,7 +28618,7 @@ require.register("grunt-wpt-page", function (exports, module) {
                     that.renderContentsRequestsGraph( tests, 'repeat' );
                 });
             },
-            renderGraph: function(){
+            renderGraphs: function(){
                 var that = this;
 
                 this.getTests(this.testIds).done(function(tests){
@@ -28638,7 +28638,7 @@ require.register("grunt-wpt-page", function (exports, module) {
 
             },
             renderResponseTimeGraph: function(tests, type, view){
-                renderMorris({
+                renderGraph({
                     data: _.map(tests, function(test){
                         var obj = _.extend({}, test.response.data[type][view+'View']);
                         obj.date = new Date( test.response.data.completed );
@@ -28650,7 +28650,7 @@ require.register("grunt-wpt-page", function (exports, module) {
                 });
             },
             renderContentsSizeGraph: function(tests, view){
-                renderMorris({
+                renderGraph({
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
@@ -28670,7 +28670,7 @@ require.register("grunt-wpt-page", function (exports, module) {
                 });
             },
             renderContentsRequestsGraph: function(tests, view){
-                renderMorris({
+                renderGraph({
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
