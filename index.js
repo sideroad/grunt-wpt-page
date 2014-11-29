@@ -9,28 +9,41 @@
         bootstrap = require('components-bootstrap'),
         Vue = require('vue'),
         renderGraph = function(data){
-            var series = _.map(data.keys, function(key, index){
-                return {
-                    name: data.labels[index],
-                    data: _.map(data.data, function(item){
-                        return {
-                            x: item.date.getTime(),
-                            y: Number(item[key]),
-                            summary: item.summary,
-                            id: item.id
-                        };
-                    })
-                };
-            });
+            var series = _.map( data.keys, function(key, index){
+                            return {
+                                name: data.labels[index],
+                                data: _.chain(data.data)
+                                       .map(function(item){
+                                          return {
+                                            x: item.date.getTime(),
+                                            y: Number(item[key]),
+                                            summary: item.summary,
+                                            id: item.id
+                                          };
+                                       })
+                                       .sortBy('x')
+                                       .value()
+                            };
+                        });
             $("#"+data.element).html('')
                                .highcharts({
+                                  chart: {
+                                    type: 'spline'
+                                  },
                                   xAxis: {
                                     type: 'datetime'
                                   },
+                                  yAxis: {
+                                    title: {
+                                        text: data.ytitle
+                                    }
+                                  },
                                   tooltip: {
                                     shared: true,
-                                    crosshairs: true
+                                    crosshairs: true,
+                                    valueSuffix: data.valueSuffix
                                   },
+                                  title: '',
                                   series: series,
                                   plotOptions: {
                                         series: {
@@ -38,15 +51,15 @@
                                             point: {
                                                 events: {
                                                     click: function (e) {
-                                                        console.log(this);
                                                         hs.htmlExpand(null, {
                                                             pageOrigin: {
                                                                 x: e.pageX,
                                                                 y: e.pageY
                                                             },
                                                             headingText: this.series.name,
-                                                            maincontentText: '<a href="'+this.summary+'" >'+this.id+'</a>',
-                                                            width: 200
+                                                            maincontentText: 'Date: '+new Date(this.x)+'<br/>'+
+                                                                             'Summary: <a href="'+this.summary+'" >'+this.id+'</a>',
+                                                            width: 'auto'
                                                         });
                                                     }
                                                 }
@@ -240,6 +253,8 @@
                         obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
+                    valueSuffix: ' msec',
+                    ytitle: 'Time (msec)',
                     keys: _(this.labels.responseTime[type]).keys().value(),
                     labels: _(this.labels.responseTime[type]).values().value(),
                     element: $.camelCase( view + '-' + type)
@@ -254,6 +269,7 @@
                         obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
+                    ytitle: 'Score',
                     keys: ['SpeedIndex'],
                     labels: [this.labels.SpeedIndex],
                     element: $.camelCase( view + '-' + type + '-speedIndex')
@@ -276,6 +292,8 @@
                         obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
+                    valueSuffix: ' KByte',                      
+                    ytitle: 'Size (KByte)',
                     keys: _(this.labels.contents).keys().value().concat(['total']),
                     labels: _(this.labels.contents).values().value().concat(['Total']),
                     element: view + 'ContentsSize'
@@ -297,6 +315,7 @@
                         obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
+                    ytitle: 'Requests',
                     keys: _(this.labels.contents).keys().value().concat(['total']),
                     labels: _(this.labels.contents).values().value().concat(['Total']),
                     element: view + 'ContentsRequests'
