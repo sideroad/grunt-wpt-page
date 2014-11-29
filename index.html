@@ -26,13 +26,16 @@
                     </select>
 
                     <h2>URL</h2>
-                    <select id="urls" class="form-control" v-model="url" >
+                    <select id="urls" class="form-control" v-model="url" v-show="!comparizon" >
                         <option v-repeat="urls" value="{{$key}}" >{{$key}}</option>
                     </select>
+                    <input type="checkbox" v-model="comparizon" id="comparizonURLs">
+                    <label for="comparizonURLs">Comparizon URLs</label>
 
                     <h2>Statics</h2>
                     <select id="statics" class="form-control" v-model="statics" >
-                        <option v-repeat="staticsList" value="{{key}}">{{value}}</option>
+                        <option value="average">Average</option>
+                        <option value="median">Median</option>
                     </select>
 
                     <h2>Results</h2>

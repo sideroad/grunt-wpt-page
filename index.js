@@ -80,20 +80,11 @@
             statics: 'average',
             average: true,
             median: false,
+            comparizon: false,
             colspan: {
                 average: 2,
                 median: 6
             },
-            staticsList: [
-                {
-                    key: 'average',
-                    value: 'Average'
-                },
-                {
-                    key: 'median',
-                    value: 'Median'
-                }
-            ],
             tests: {},
             labels: {
                 SpeedIndex: 'Speed Index',
