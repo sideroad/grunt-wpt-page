@@ -27,9 +27,9 @@ module.exports = function(grunt) {
       pages: {
         src: [
           'q.min.js',
-          'jquery.js',
-          'd3.js',
-          'metricsgraphics.js'
+          'jquery.min.js',
+          'morris-0.5.1.min.js',
+          'raphael-min.js'
         ],
         dest: 'build/lib.js'
       }

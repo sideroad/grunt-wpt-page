@@ -1,25 +1,22 @@
-/*global data_graphic, Q */
+/*global Morris, Q */
 
-(function( Q ){
+(function( Morris, Q ){
     'use strict';
 
     var $ = require('jquery'),
         _ = require('lodash'),
         request = require('superagent'),
         moment = require('moment'),
-        bootstrap = require('components-bootstrap'),
-        Vue = require('vue'),
-        renderGraph = function(data){
+        bootstrap = require('components-bootstrap'),        Vue = require('vue'),
+        renderMorris = function(data){
             $("#"+data.element).html('');
-            data_graphic({
-              target: "#"+data.element,
-              legend_target: "#"+data.element+"Legend",
-              legend: data.keys,
+            Morris.Area({
+              element: data.element,
               data: data.data,
-              x_accessor: "date",
-              y_accessor: data.keys,
-              y_extended_ticks: true,
-              interpolate: "monotone"
+              xkey: 'date',
+              ykeys: data.keys,
+              labels: data.labels,
+              behaveLikeLine: true
             });
         };
 
@@ -59,10 +56,10 @@
             var that = this;
 
             this.$watch('url', function(){
-                that.renderGraphs();
+                that.renderGraph();
             });
             this.$watch('results', function(){
-                // that.renderGraphs();
+                // that.renderGraph();
             });
 
             request.get('tests/results.json')
@@ -170,7 +167,7 @@
                     that.renderContentsRequestsGraph( tests, 'repeat' );
                 });
             },
-            renderGraphs: function(){
+            renderGraph: function(){
                 var that = this;
 
                 this.getTests(this.testIds).done(function(tests){
@@ -190,10 +187,10 @@
 
             },
             renderResponseTimeGraph: function(tests, type, view){
-                renderGraph({
+                renderMorris({
                     data: _.map(tests, function(test){
-                        var obj = _.extend({}, test.response.data[type][view+'View']);
-                        obj.date = new Date( test.response.data.completed );
+                        var obj = test.response.data[type][view+'View'] || {};
+                        obj.date = new Date( test.response.data.completed ).getTime();
                         return obj;
                     }),
                     keys: _(this.labels.responseTime[type]).keys().value(),
@@ -202,7 +199,7 @@
                 });
             },
             renderContentsSizeGraph: function(tests, view){
-                renderGraph({
+                renderMorris({
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
@@ -213,7 +210,7 @@
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0).toFixed(1);
-                        obj.date = new Date( test.response.data.completed );
+                        obj.date = new Date( test.response.data.completed ).getTime();
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
@@ -222,7 +219,7 @@
                 });
             },
             renderContentsRequestsGraph: function(tests, view){
-                renderGraph({
+                renderMorris({
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
@@ -232,7 +229,7 @@
                         obj.total = _.reduce(obj, function(memo, val, key){
                             return memo + Number(val||0);
                         }, 0);
-                        obj.date = new Date( test.response.data.completed );
+                        obj.date = new Date( test.response.data.completed ).getTime();
                         return obj;
                     }),
                     keys: _(this.labels.contents).keys().value().concat(['total']),
@@ -243,4 +240,4 @@
         }
     });
 
-})(Q);
+})(Morris, Q);
