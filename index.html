@@ -17,6 +17,7 @@
     </div>
 
     <div id="app" class="container">
+
         <div class="row">
             <div class="col-md-2 sidebar" >
                 <div data-spy="affix" data-offset-top="60" class="nav-graph">
@@ -38,12 +39,18 @@
                         <option value="median">Median</option>
                     </select>
 
+                    <h2>View</h2>
+                    <select id="view" class="form-control" v-model="view" >
+                        <option value="firstView">FirstView</option>
+                        <option value="repeatView">RepeatView</option>
+                    </select>
+
                     <h2>Results</h2>
                     <ul class="nav nav-pills nav-stacked">
                         <li><a href="#responseTime">Response Time</a></li>
+                        <li><a href="#speedIndex">SpeedIndex</a></li>
                         <li><a href="#contentsSize">Contents Size</a></li>
                         <li><a href="#contentsRequests">Contents Requests</a></li>
-                        <li><a href="#speedIndex">SpeedIndex</a></li>
                     </ul>
                 </div>
             </div>
@@ -51,158 +58,148 @@
 
                 <h2 id="responseTime" >Response Time</h2>
 
-                <h3>FirstView</h3>
-                <div v-show="average">
-                    <div id="firstAverage" class="graphs" ></div>
+                <div v-show="!comparizon" >
+                    <div id="responseTimeGraph" class="graphs" ></div>
                 </div>
 
-                <div v-show="median">
-                    <div id="firstMedian" class="graphs" ></div>
+                <div v-show="comparizon" >
+                    <h4>Document Complete</h4>
+                    <div id="loadTimeGraph" class="graphs" ></div>
+                    <h4>Fully Loaded</h4>
+                    <div id="fullyLoadedGraph" class="graphs" ></div>
                 </div>
 
-                <h3>RepeatView</h3>
-                <div v-show="average">
-                    <div id="repeatAverage" class="graphs"></div>
+                <div v-show="!comparizon">
+                    <h3>Detail</h3>
+                    <table class="table table-striped table-bordered">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">Date</th>
+                                <th rowspan="2">ID</th>
+                                <th colspan="{{colspan[statics]}}">FirstView</th>
+                                <th colspan="{{colspan[statics]}}">RepeatView</th>
+                            </tr>
+                            <tr>
+                                <th v-repeat="labels.responseTime[statics] | values" class="v-repeat-hack">{{$value}}</th>
+                                <th v-repeat="labels.responseTime[statics] | values">{{$value}}</th>
+                                <th v-repeat="labels.responseTime[statics] | values">{{$value}}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="averageTable">
+
+                            <tr v-repeat="tests" class="v-repeat-hack">
+                                <td>{{response.data.average.firstView.loadTime}}</td>
+                            </tr>
+                            <tr v-repeat="tests" >
+                                <td>{{response.data.completed}}</td>
+                                <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
+                                <td v-repeat="labels.responseTime[statics] | keys" class="v-repeat-hack">{{response.data[statics].firstView[$value] | ms}}</td>
+                                <td v-repeat="labels.responseTime[statics] | keys">{{response.data[statics].firstView[$value] | ms}}</td>
+                                <td v-repeat="labels.responseTime[statics] | keys" class="v-repeat-hack">{{response.data[statics].repeatView[$value] | ms}}</td>
+                                <td v-repeat="labels.responseTime[statics] | keys">{{response.data[statics].repeatView[$value] | ms}}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-
-                <div v-show="median">
-                    <div id="repeatMedian" class="graphs"></div>
-                </div>
-
-                <h3>Detail</h3>
-                <table class="table table-striped table-bordered">
-                    <thead>
-                        <tr>
-                            <th rowspan="2">Date</th>
-                            <th rowspan="2">ID</th>
-                            <th colspan="{{colspan[statics]}}">FirstView</th>
-                            <th colspan="{{colspan[statics]}}">RepeatView</th>
-                        </tr>
-                        <tr>
-                            <th v-repeat="labels.responseTime[statics]">{{$value}}</th>
-                            <th v-repeat="labels.responseTime[statics]">{{$value}}</th>
-                        </tr>
-                    </thead>
-                    <tbody id="averageTable">
-                        <tr v-repeat="tests" >
-                            <td>{{response.data.completed}}</td>
-                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
-                            <td v-repeat="labels.responseTime[statics]">{{response.data[statics].firstView[$key] | ms}}</td>
-                            <td v-repeat="labels.responseTime[statics]">{{response.data[statics].repeatView[$key] | ms}}</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <h2 id="contentsSize" >Contents Size</h2>
-                <h3>FirstView</h3>
-                <div id="firstContentsSize" class="graphs"></div>
-
-                <h3>RepeatView</h3>
-                <div id="repeatContentsSize" class="graphs"></div>
-
-                <h3>Detail</h3>
-                <table class="table table-striped table-bordered">
-                    <thead>
-                        <tr>
-                            <th rowspan="2">Date</th>
-                            <th rowspan="2">ID</th>
-                            <th colspan="8">FirstView</th>
-                            <th colspan="8">RepeatView</th>
-                        </tr>
-                        <tr>
-                            <th>Total</th>
-                            <th v-repeat="labels.contents">{{$value}}</th>
-                            <th>Total</th>
-                            <th v-repeat="labels.contents">{{$value}}</th>
-                        </tr>
-                    </thead>
-                    <tbody id="contentsSizeTable">
-                        <tr v-repeat="tests" >
-                            <td>{{response.data.completed}}</td>
-                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
-                            <td>{{response.data.median.firstView.breakdown | totalBytes | KB}}</td>
-                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].bytes | KB}}</td>
-                            <td>{{response.data.median.repeatView.breakdown | totalBytes | KB}}</td>
-                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].bytes | KB}}</td>
-                         </tr>
-                    </tbody>
-                </table>
-
-                <h2 id="contentsRequests" >Contents Requests</h2>
-                <h3>FirstView</h3>
-                <div id="firstContentsRequests" class="graphs"></div>
-
-                <h3>RepeatView</h3>
-                <div id="repeatContentsRequests" class="graphs"></div>
-
-                <h3>Detail</h3>
-                <table class="table table-striped table-bordered">
-                    <thead>
-                        <tr>
-                            <th rowspan="2">Date</th>
-                            <th rowspan="2">ID</th>
-                            <th colspan="8">FirstView</th>
-                            <th colspan="8">RepeatView</th>
-                        </tr>
-                        <tr>
-                            <th>Total</th>
-                            <th v-repeat="labels.contents">{{$value}}</th>
-                            <th>Total</th>
-                            <th v-repeat="labels.contents">{{$value}}</th>
-                        </tr>
-                    </thead>
-                    <tbody id="contentsRequestsTable">
-                        <tr v-repeat="tests" >
-                            <td>{{response.data.completed}}</td>
-                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
-                            <td>{{response.data.median.firstView.breakdown | totalRequests }}</td>
-                            <td v-repeat="labels.contents" >{{response.data.median.firstView.breakdown[$key].requests }}</td>
-                            <td>{{response.data.median.repeatView.breakdown | totalRequests }}</td>
-                            <td v-repeat="labels.contents" >{{response.data.median.repeatView.breakdown[$key].requests }}</td>
-                         </tr>
-                    </tbody>
-                </table>
-
 
                 <h2 id="speedIndex" >Speed Index</h2>
 
-                <h3>FirstView</h3>
-                <div v-show="average">
-                    <div id="firstAverageSpeedIndex" class="graphs"></div>
+                <div id="speedIndexGraph" class="graphs"></div>
+
+                <div v-show="!comparizon">
+                    <h3>Detail</h3>
+                    <table class="table table-striped table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>ID</th>
+                                <th>FirstView</th>
+                                <th>RepeatView</th>
+                            </tr>
+                        </thead>
+                        <tbody id="medianTable">
+                            <tr v-repeat="tests">
+                                <td>{{response.data.completed}}</td>
+                                <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
+                                <td>{{response.data[statics].firstView.SpeedIndex}}</td>
+                                <td>{{response.data[statics].repeatView.SpeedIndex}}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
-                <div v-show="median">
-                    <div id="firstMedianSpeedIndex" class="graphs"></div>
+
+                <h2 id="contentsSize" >Contents Size</h2>
+                <div id="contentsSizeGraph" class="graphs"></div>
+
+                <div v-show="!comparizon">
+                    <h3>Detail</h3>
+                    <table class="table table-striped table-bordered">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">Date</th>
+                                <th rowspan="2">ID</th>
+                                <th colspan="8">FirstView</th>
+                                <th colspan="8">RepeatView</th>
+                            </tr>
+                            <tr>
+                                <th>Total</th>
+                                <th v-repeat="labels.contents | values" class="v-repeat-hack">{{$value}}</th>
+                                <th v-repeat="labels.contents | values">{{$value}}</th>
+                                <th>Total</th>
+                                <th v-repeat="labels.contents | values">{{$value}}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contentsSizeTable">
+                            <tr v-repeat="tests" >
+                                <td>{{response.data.completed}}</td>
+                                <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
+                                <td>{{response.data.median.firstView.breakdown | totalBytes | KB}}</td>
+                                <td v-repeat="labels.contents | keys" class="v-repeat-hack">{{response.data.median.firstView.breakdown[$value].bytes | KB}}</td>
+                                <td v-repeat="labels.contents | keys" >{{response.data.median.firstView.breakdown[$value].bytes | KB}}</td>
+                                <td>{{response.data.median.repeatView.breakdown | totalBytes | KB}}</td>
+                                <td v-repeat="labels.contents | keys" class="v-repeat-hack">{{response.data.median.repeatView.breakdown[$value].bytes | KB}}</td>
+                                <td v-repeat="labels.contents | keys" >{{response.data.median.repeatView.breakdown[$value].bytes | KB}}</td>
+                             </tr>
+                        </tbody>
+                    </table>
                 </div>
 
-                <h3>RepeatView</h3>
-                <div v-show="average">
-                    <div id="repeatAverageSpeedIndex" class="graphs"></div>
-                </div>
+                <h2 id="contentsRequests" >Contents Requests</h2>
+                <div id="contentsRequestsGraph" class="graphs"></div>
 
-                <div v-show="median">
-                    <div id="repeatMedianSpeedIndex" class="graphs"></div>
+                <div v-show="!comparizon">
+                    <h3>Detail</h3>
+                    <table class="table table-striped table-bordered">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">Date</th>
+                                <th rowspan="2">ID</th>
+                                <th colspan="8">FirstView</th>
+                                <th colspan="8">RepeatView</th>
+                            </tr>
+                            <tr>
+                                <th>Total</th>
+                                <th v-repeat="labels.contents | values" class="v-repeat-hack">{{$value}}</th>
+                                <th v-repeat="labels.contents | values">{{$value}}</th>
+                                <th>Total</th>
+                                <th v-repeat="labels.contents | values">{{$value}}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contentsRequestsTable">
+                            <tr v-repeat="tests" >
+                                <td>{{response.data.completed}}</td>
+                                <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
+                                <td>{{response.data.median.firstView.breakdown | totalRequests }}</td>
+                                <td v-repeat="labels.contents | keys" class="v-repeat-hack">{{response.data.median.firstView.breakdown[$value].requests }}</td>
+                                <td v-repeat="labels.contents | keys" >{{response.data.median.firstView.breakdown[$value].requests }}</td>
+                                <td>{{response.data.median.repeatView.breakdown | totalRequests }}</td>
+                                <td v-repeat="labels.contents | keys" class="v-repeat-hack">{{response.data.median.repeatView.breakdown[$value].requests }}</td>
+                                <td v-repeat="labels.contents | keys" >{{response.data.median.repeatView.breakdown[$value].requests }}</td>
+                             </tr>
+                        </tbody>
+                    </table>
                 </div>
-
-                <h3>Detail</h3>
-                <table class="table table-striped table-bordered">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>ID</th>
-                            <th>FirstView</th>
-                            <th>RepeatView</th>
-                        </tr>
-                    </thead>
-                    <tbody id="medianTable">
-                        <tr v-repeat="tests">
-                            <td>{{response.data.completed}}</td>
-                            <td><a v-attr="href: response.data.summary">{{response.data.testId}}</a></td>
-                            <td>{{response.data[statics].firstView.SpeedIndex}}</td>
-                            <td>{{response.data[statics].repeatView.SpeedIndex}}</td>
-                        </tr>
-                    </tbody>
-                </table>
 
             </div>
         </div>
@@ -211,7 +208,7 @@
     <script src='build/lib.js'></script>
     <script src='build/build.js'></script>
     <script>
-        require('grunt-wpt-page')
+        require('grunt-wpt-page');
     </script>
 </body>
 </html>
