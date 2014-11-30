@@ -231,7 +231,7 @@
                 var requests = [],
                     that = this;
 
-                _(this.testIds).each(function(testId){
+                _(testIds).each(function(testId){
                     var dfd = Q.defer();
 
                     if(cached[testId]){
@@ -279,13 +279,13 @@
                             };
                         });
 
-                        that.renderComparizonResponseTimeGraph( tests, that.statics, that.view, 'fullyLoaded' );
-                        that.renderComparizonResponseTimeGraph( tests, that.statics, that.view, 'loadTime' );
+                        that.renderComparizonResponseTimeGraph( tests, 'fullyLoaded' );
+                        that.renderComparizonResponseTimeGraph( tests, 'loadTime' );
 
-                        that.renderComparizonContentsSizeGraph( tests, that.view );
-                        that.renderComparizonContentsRequestGraph( tests, that.view );
+                        that.renderComparizonContentsSizeGraph( tests );
+                        that.renderComparizonContentsRequestGraph( tests );
 
-                        that.renderComparizonSpeedIndexGraph( tests, that.statics, that.view );
+                        that.renderComparizonSpeedIndexGraph( tests );
 
 
                     });
@@ -294,18 +294,20 @@
                         tests = _.compact(tests);
                         that.$set('tests', tests);
 
-                        that.renderResponseTimeGraph( tests, that.statics, that.view );
-                        that.renderSpeedIndexGraph( tests, that.statics, that.view );
-                        that.renderContentsSizeGraph( tests, that.view );
-                        that.renderContentsRequestsGraph( tests, that.view );
+                        that.renderResponseTimeGraph( tests );
+                        that.renderSpeedIndexGraph( tests );
+                        that.renderContentsSizeGraph( tests );
+                        that.renderContentsRequestsGraph( tests );
                     });
                 }
 
             },
-            renderResponseTimeGraph: function(tests, type, view){
+            renderResponseTimeGraph: function(tests){
+                var statics = this.statics,
+                    view = this.view;
                 renderGraph({
                     data: _.map(tests, function(test){
-                        var obj = _.extend({}, test.response.data[type][view]);
+                        var obj = _.extend({}, test.response.data[statics][view]);
                         obj.date = new Date( test.response.data.completed );
                         obj.summary = _.extend({}, test).response.data.summary;
                         obj.id = _.extend({}, test).response.data.testId;
@@ -314,15 +316,18 @@
                     valueSuffix: ' msec',
                     ytitle: 'Time (msec)',
                     tooltip: true,
-                    keys: _(this.labels.responseTime[type]).keys().value().reverse(),
-                    labels: _(this.labels.responseTime[type]).values().value().reverse(),
+                    keys: _(this.labels.responseTime[statics]).keys().value().reverse(),
+                    labels: _(this.labels.responseTime[statics]).values().value().reverse(),
                     element: 'responseTimeGraph'
                 });
             },
-            renderSpeedIndexGraph: function(tests, type, view){
+            renderSpeedIndexGraph: function(tests){
+                var statics = this.statics,
+                    view = this.view;
+
                 renderGraph({
                     data: _.map(tests, function(test){
-                        var obj = _.extend({}, test.response.data[type][view]);
+                        var obj = _.extend({}, test.response.data[statics][view]);
                         obj.date = new Date( test.response.data.completed );
                         obj.summary = _.extend({}, test).response.data.summary;
                         obj.id = _.extend({}, test).response.data.testId;
@@ -335,7 +340,9 @@
                     element: 'speedIndexGraph'
                 });
             },
-            renderContentsSizeGraph: function(tests, view){
+            renderContentsSizeGraph: function(tests){
+                var view = this.view;
+
                 renderGraph({
                       data: _.map(tests, function(test){
                         var obj = {};
@@ -360,7 +367,9 @@
                     element: 'contentsSizeGraph'
                 });
             },
-            renderContentsRequestsGraph: function(tests, view){
+            renderContentsRequestsGraph: function(tests){
+                var view = this.view;
+
                 renderGraph({
                       data: _.map(tests, function(test){
                         var obj = {};
@@ -383,13 +392,15 @@
                     element: 'contentsRequestsGraph'
                 });
             },
-            renderComparizonResponseTimeGraph: function(tests, type, view, key){
-                var list = [];
+            renderComparizonResponseTimeGraph: function(tests, key){
+                var statics = this.statics,
+                    view = this.view,
+                    list = [];
 
                 _.each(tests, function(test){
                      _.each(test.response, function(response){
                         var obj = {};
-                        obj[test.url] = response.data[type][view][key];
+                        obj[test.url] = response.data[statics][view][key];
                         obj.date = new Date( response.data.completed );
                         obj.summary = response.data.summary;
                         obj.id = response.data.testId;
@@ -405,13 +416,15 @@
                     element: key+'Graph'
                 });
             },
-            renderComparizonSpeedIndexGraph: function(tests, type, view){
-                var list = [];
+            renderComparizonSpeedIndexGraph: function(tests){
+                var statics = this.statics,
+                    view = this.view,
+                    list = [];
 
                 _.each(tests, function(test){
                      _.each(test.response, function(response){
                         var obj = {};
-                        obj[test.url] = response.data[type][view].SpeedIndex;
+                        obj[test.url] = response.data[statics][view].SpeedIndex;
                         obj.date = new Date( response.data.completed );
                         obj.summary = response.data.summary;
                         obj.id = response.data.testId;
@@ -426,8 +439,9 @@
                     element: 'speedIndexGraph'
                 });
             },
-            renderComparizonContentsSizeGraph: function(tests, view){
-                var list = [];
+            renderComparizonContentsSizeGraph: function(tests){
+                var view = this.view,
+                    list = [];
 
                 _.each(tests, function(test){
                      _.each(test.response, function(response){
@@ -435,7 +449,6 @@
                         obj[test.url] = Number(_.reduce( response.data.median[view].breakdown, function(sum, val, key){
                             return sum + (Number(val.bytes||0)/1000);
                         }, 0).toFixed(0));
-                        console.log(obj);
                         obj.date = new Date( response.data.completed );
                         obj.summary = response.data.summary;
                         obj.id = response.data.testId;
@@ -451,8 +464,9 @@
                     element: 'contentsSizeGraph'
                 });
             },
-            renderComparizonContentsRequestGraph: function(tests, view){
-                var list = [];
+            renderComparizonContentsRequestGraph: function(tests){
+                var view = this.view,
+                    list = [];
 
                 _.each(tests, function(test){
                      _.each(test.response, function(response){
