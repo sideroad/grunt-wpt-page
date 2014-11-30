@@ -8,23 +8,30 @@
         moment = require('moment'),
         bootstrap = require('components-bootstrap'),
         Vue = require('vue'),
+        cached = {},
         renderGraph = function(data){
             var series = _.map( data.keys, function(key, index){
                             return {
                                 name: data.labels[index],
                                 data: _.chain(data.data)
                                        .map(function(item){
-                                          return {
-                                            x: item.date.getTime(),
-                                            y: Number(item[key]),
-                                            summary: item.summary,
-                                            id: item.id
-                                          };
+                                          if(!item[key]){
+                                            return false;
+                                          } else {
+                                              return {
+                                                x: item.date.getTime(),
+                                                y: Number(item[key]),
+                                                summary: item.summary,
+                                                id: item.id
+                                              };                                            
+                                          }
                                        })
+                                       .compact()
                                        .sortBy('x')
                                        .value()
                             };
                         });
+
             $("#"+data.element).html('')
                                .highcharts({
                                   chart: {
@@ -39,8 +46,8 @@
                                     }
                                   },
                                   tooltip: {
-                                    shared: true,
-                                    crosshairs: true,
+                                    shared: data.tooltip ? true : false,
+                                    crosshairs: data.tooltip ? true : false,
                                     valueSuffix: data.valueSuffix
                                   },
                                   title: '',
@@ -77,24 +84,20 @@
         data: {
             results: {},
             locations: {},
+            urls: {},
+            url: '',
+            tests: {},
             statics: 'average',
             average: true,
             median: false,
+            view: 'firstView',
+            firstView: true,
+            repeatView: false,
+            comparizon: false,
             colspan: {
                 average: 2,
                 median: 6
             },
-            staticsList: [
-                {
-                    key: 'average',
-                    value: 'Average'
-                },
-                {
-                    key: 'median',
-                    value: 'Median'
-                }
-            ],
-            tests: {},
             labels: {
                 SpeedIndex: 'Speed Index',
                 responseTime: {
@@ -127,11 +130,23 @@
 
             this.$watch('url', function(){
                 that.renderGraphs();
-            });
+            }, true);
+
             this.$watch('statics', function(value){
                 that.median = false;
                 that.average = false;
                 that[value] = true;
+                that.renderGraphs();
+            });            
+
+            this.$watch('view', function(value){
+                that.firstView = false;
+                that.repeatView = false;
+                that[value] = true;
+                that.renderGraphs();
+            });
+
+            this.$watch('comparizon', function(isChecked){
                 that.renderGraphs();
             });
 
@@ -181,6 +196,16 @@
 
                 return total;
             },
+            keys: function(items){
+                return _.map(items, function(item){
+                    return item.key;
+                });
+            },
+            values: function(items){
+                return _.map(items, function(item){
+                    return item.value;
+                });
+            },
             ms: function(num){
                 return String(num).replace(/(\d{1,3})(?=(?:\d{3})+$)/g,"$1,")+' ms';
             },
@@ -189,34 +214,52 @@
             }
         },
         methods: {
+            getAllTests: function(){
+                var testIds = _.chain(this.urls)
+                               .map(function(url){
+                                    return url;
+                                })
+                               .flatten()
+                               .value(),
+                    requests = [];
+
+                // Hack for weired option bug//
+                testIds.pop();
+                return this.getTests(testIds);
+            },
             getTests: function(testIds){
                 var requests = [],
                     that = this;
 
                 _(this.testIds).each(function(testId){
-                   var dfd = Q.defer();
+                    var dfd = Q.defer();
 
-                    request.get('tests/'+testId+'.json')
-                           .set('Content-Type', 'application/json')
-                           .end(function(res){
-                                var data = res.body.response.data,
-                                    isExists = function(source, target){
-                                        return _.every(source, function(val){
-                                            return _.contains(target, val);
-                                        });
-                                    };
+                    if(cached[testId]){
+                        dfd.resolve(cached[testId]);
+                    } else {
+                        request.get('tests/'+testId+'.json')
+                               .set('Content-Type', 'application/json')
+                               .end(function(res){
+                                    var data = res.body.response.data,
+                                        isExists = function(source, target){
+                                            return _.every(source, function(val){
+                                                return _.contains(target, val);
+                                            });
+                                        };
 
-                                if(isExists( _.keys(that.labels.responseTime.average), _.keys(data.average.firstView)) &&
-                                   isExists( _.keys(that.labels.responseTime.average), _.keys(data.average.repeatView)) &&
-                                   isExists( _.keys(that.labels.responseTime.median), _.keys(data.median.firstView)) &&
-                                   isExists( _.keys(that.labels.responseTime.median), _.keys(data.median.repeatView)) &&
-                                   isExists( _.keys(that.labels.contents), _.keys(data.median.firstView.breakdown)) &&
-                                   isExists( _.keys(that.labels.contents), _.keys(data.median.repeatView.breakdown))){
-                                    dfd.resolve(res.body);
-                                } else {
-                                    dfd.resolve();
-                                }
-                           });
+                                    if(isExists( _.keys(that.labels.responseTime.average), _.keys(data.average.firstView)) &&
+                                       isExists( _.keys(that.labels.responseTime.average), _.keys(data.average.repeatView)) &&
+                                       isExists( _.keys(that.labels.responseTime.median), _.keys(data.median.firstView)) &&
+                                       isExists( _.keys(that.labels.responseTime.median), _.keys(data.median.repeatView)) &&
+                                       isExists( _.keys(that.labels.contents), _.keys(data.median.firstView.breakdown)) &&
+                                       isExists( _.keys(that.labels.contents), _.keys(data.median.repeatView.breakdown))){
+                                        cached[testId] = res.body;
+                                        dfd.resolve(res.body);
+                                    } else {
+                                        dfd.resolve();
+                                    }
+                               });
+                    }
                     requests.push(dfd.promise);
                 });
 
@@ -225,29 +268,44 @@
             renderGraphs: function(){
                 var that = this;
 
-                this.getTests(this.testIds).done(function(tests){
-                    tests = _.compact(tests);
+                if(this.comparizon){
+                    this.getAllTests().done(function(){
+                        var tests = _.map(that.urls, function(testIds, url){
+                            return {
+                                url: url,
+                                response: _.map(testIds, function(testId){
+                                          return cached[testId].response;
+                                      })
+                            };
+                        });
 
-                    that.$set('tests', tests);
+                        that.renderComparizonResponseTimeGraph( tests, that.statics, that.view, 'fullyLoaded' );
+                        that.renderComparizonResponseTimeGraph( tests, that.statics, that.view, 'loadTime' );
 
-                    that.renderResponseTimeGraph( tests, that.statics, 'first' );
-                    that.renderResponseTimeGraph( tests, that.statics, 'repeat' );
+                        that.renderComparizonContentsSizeGraph( tests, that.view );
+                        that.renderComparizonContentsRequestGraph( tests, that.view );
 
-                    that.renderSpeedIndexGraph( tests, that.statics, 'first' );
-                    that.renderSpeedIndexGraph( tests, that.statics, 'repeat' );
+                        that.renderComparizonSpeedIndexGraph( tests, that.statics, that.view );
 
-                    that.renderContentsSizeGraph( tests, 'first' );
-                    that.renderContentsSizeGraph( tests, 'repeat' );
 
-                    that.renderContentsRequestsGraph( tests, 'first' );
-                    that.renderContentsRequestsGraph( tests, 'repeat' );
-                });
+                    });
+                } else {
+                    this.getTests(this.testIds).done(function(tests){
+                        tests = _.compact(tests);
+                        that.$set('tests', tests);
+
+                        that.renderResponseTimeGraph( tests, that.statics, that.view );
+                        that.renderSpeedIndexGraph( tests, that.statics, that.view );
+                        that.renderContentsSizeGraph( tests, that.view );
+                        that.renderContentsRequestsGraph( tests, that.view );
+                    });
+                }
 
             },
             renderResponseTimeGraph: function(tests, type, view){
                 renderGraph({
                     data: _.map(tests, function(test){
-                        var obj = _.extend({}, test.response.data[type][view+'View']);
+                        var obj = _.extend({}, test.response.data[type][view]);
                         obj.date = new Date( test.response.data.completed );
                         obj.summary = _.extend({}, test).response.data.summary;
                         obj.id = _.extend({}, test).response.data.testId;
@@ -255,24 +313,26 @@
                     }),
                     valueSuffix: ' msec',
                     ytitle: 'Time (msec)',
+                    tooltip: true,
                     keys: _(this.labels.responseTime[type]).keys().value().reverse(),
                     labels: _(this.labels.responseTime[type]).values().value().reverse(),
-                    element: $.camelCase( view + '-' + type)
+                    element: 'responseTimeGraph'
                 });
             },
             renderSpeedIndexGraph: function(tests, type, view){
                 renderGraph({
                     data: _.map(tests, function(test){
-                        var obj = _.extend({}, test.response.data[type][view+'View']);
+                        var obj = _.extend({}, test.response.data[type][view]);
                         obj.date = new Date( test.response.data.completed );
                         obj.summary = _.extend({}, test).response.data.summary;
                         obj.id = _.extend({}, test).response.data.testId;
                         return obj;
                     }),
                     ytitle: 'Score',
+                    tooltip: true,
                     keys: ['SpeedIndex'],
                     labels: [this.labels.SpeedIndex],
-                    element: $.camelCase( view + '-' + type + '-speedIndex')
+                    element: 'speedIndexGraph'
                 });
             },
             renderContentsSizeGraph: function(tests, view){
@@ -280,7 +340,7 @@
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
-                        _.each(test.response.data.median[view+'View'].breakdown, function(val, key){
+                        _.each(test.response.data.median[view].breakdown, function(val, key){
                             obj[key] = ( (val.bytes||0) / 1000).toFixed(1);
                             tmp += Number(obj[key]);
                         });
@@ -294,9 +354,10 @@
                     }),
                     valueSuffix: ' KByte',                      
                     ytitle: 'Size (KByte)',
+                    tooltip: true,
                     keys: _(this.labels.contents).keys().value().concat(['total']).reverse(),
                     labels: _(this.labels.contents).values().value().concat(['Total']).reverse(),
-                    element: view + 'ContentsSize'
+                    element: 'contentsSizeGraph'
                 });
             },
             renderContentsRequestsGraph: function(tests, view){
@@ -304,7 +365,7 @@
                       data: _.map(tests, function(test){
                         var obj = {};
                         var tmp = 0;
-                        _.each(test.response.data.median[view+'View'].breakdown, function(val, key){
+                        _.each(test.response.data.median[view].breakdown, function(val, key){
                             obj[key] = Number(val.requests||0);
                         });
                         obj.total = _.reduce(obj, function(memo, val, key){
@@ -316,11 +377,104 @@
                         return obj;
                     }),
                     ytitle: 'Requests',
+                    tooltip: true,
                     keys: _(this.labels.contents).keys().value().concat(['total']).reverse(),
                     labels: _(this.labels.contents).values().value().concat(['Total']).reverse(),
-                    element: view + 'ContentsRequests'
+                    element: 'contentsRequestsGraph'
                 });
-            }
+            },
+            renderComparizonResponseTimeGraph: function(tests, type, view, key){
+                var list = [];
+
+                _.each(tests, function(test){
+                     _.each(test.response, function(response){
+                        var obj = {};
+                        obj[test.url] = response.data[type][view][key];
+                        obj.date = new Date( response.data.completed );
+                        obj.summary = response.data.summary;
+                        obj.id = response.data.testId;
+                        list.push(obj);
+                    }); 
+                });
+                renderGraph({
+                    data: list,
+                    valueSuffix: ' msec',
+                    ytitle: 'Time (msec)',
+                    keys: _(this.urls).keys().value(),
+                    labels: _(this.urls).keys().value(),
+                    element: key+'Graph'
+                });
+            },
+            renderComparizonSpeedIndexGraph: function(tests, type, view){
+                var list = [];
+
+                _.each(tests, function(test){
+                     _.each(test.response, function(response){
+                        var obj = {};
+                        obj[test.url] = response.data[type][view].SpeedIndex;
+                        obj.date = new Date( response.data.completed );
+                        obj.summary = response.data.summary;
+                        obj.id = response.data.testId;
+                        list.push(obj);
+                    }); 
+                });
+                renderGraph({
+                    data: list,
+                    ytitle: 'Score',
+                    keys: _(this.urls).keys().value(),
+                    labels: _(this.urls).keys().value(),
+                    element: 'speedIndexGraph'
+                });
+            },
+            renderComparizonContentsSizeGraph: function(tests, view){
+                var list = [];
+
+                _.each(tests, function(test){
+                     _.each(test.response, function(response){
+                        var obj = {};
+                        obj[test.url] = Number(_.reduce( response.data.median[view].breakdown, function(sum, val, key){
+                            return sum + (Number(val.bytes||0)/1000);
+                        }, 0).toFixed(0));
+                        console.log(obj);
+                        obj.date = new Date( response.data.completed );
+                        obj.summary = response.data.summary;
+                        obj.id = response.data.testId;
+                        list.push(obj);
+                    }); 
+                });
+                renderGraph({
+                    data: list,
+                    valueSuffix: ' KByte',
+                    ytitle: 'Size (KByte)',
+                    keys: _(this.urls).keys().value(),
+                    labels: _(this.urls).keys().value(),
+                    element: 'contentsSizeGraph'
+                });
+            },
+            renderComparizonContentsRequestGraph: function(tests, view){
+                var list = [];
+
+                _.each(tests, function(test){
+                     _.each(test.response, function(response){
+                        var obj = {};
+                        obj[test.url] = _.reduce( response.data.median[view].breakdown, function(sum, val, key){
+                            return sum + ( Number(val.requests) );
+                        }, 0);
+                        obj.date = new Date( response.data.completed );
+                        obj.summary = response.data.summary;
+                        obj.id = response.data.testId;
+                        list.push(obj);
+                    }); 
+                });
+                renderGraph({
+                    data: list,
+                    ytitle: 'Requests',
+                    keys: _(this.urls).keys().value(),
+                    labels: _(this.urls).keys().value(),
+                    element: 'contentsRequestsGraph'
+                });
+            }       
+
         }
     });
 

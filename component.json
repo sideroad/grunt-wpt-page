@@ -5,7 +5,7 @@
   "keywords": [],
   "dependencies": {
     "moment/moment": "*",
-    "yyx990803/vue": "^0.10.6",
+    "yyx990803/vue": "^0.11",
     "components/jquery": "*",
     "components/bootstrap": "*",
     "lodash/lodash": "*",
