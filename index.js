@@ -223,8 +223,6 @@
                                .value(),
                     requests = [];
 
-                // Hack for weired option bug//
-                testIds.pop();
                 return this.getTests(testIds);
             },
             getTests: function(testIds){
