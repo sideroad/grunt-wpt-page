@@ -26,11 +26,11 @@ module.exports = function(grunt) {
     concat: {
       pages: {
         src: [
-          'q.min.js',
-          'jquery.min.js',
-          'highslide-full.min.js',
-          'highslide.config.js',
-          'highcharts.js'
+          'lib/q.min.js',
+          'lib/jquery.min.js',
+          'lib/highslide-full.min.js',
+          'lib/highslide.config.js',
+          'lib/highcharts.js'
         ],
         dest: 'build/lib.js'
       }

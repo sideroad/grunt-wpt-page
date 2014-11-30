@@ -30196,16 +30196,16 @@ require.register("grunt-wpt-page", function (exports, module) {
                                 name: data.labels[index],
                                 data: _.chain(data.data)
                                        .map(function(item){
-                                          if(!item[key]){
-                                            return false;
-                                          } else {
-                                              return {
-                                                x: item.date.getTime(),
-                                                y: Number(item[key]),
-                                                summary: item.summary,
-                                                id: item.id
-                                              };                                            
-                                          }
+                                           if(!item[key]){
+                                               return false;
+                                           } else {
+                                               return {
+                                                   x: item.date.getTime(),
+                                                   y: Number(item[key]),
+                                                   summary: item.summary,
+                                                   id: item.id
+                                              };
+                                           }
                                        })
                                        .compact()
                                        .sortBy('x')
@@ -30216,7 +30216,8 @@ require.register("grunt-wpt-page", function (exports, module) {
             $("#"+data.element).html('')
                                .highcharts({
                                   chart: {
-                                    type: 'spline'
+                                    type: 'spline',
+                                    zoomType: 'x'
                                   },
                                   xAxis: {
                                     type: 'datetime'
@@ -30246,6 +30247,7 @@ require.register("grunt-wpt-page", function (exports, module) {
                                                             },
                                                             headingText: this.series.name,
                                                             maincontentText: 'Date: '+new Date(this.x)+'<br/>'+
+                                                                             data.ytitle+': '+this.y+' '+data.valueSuffix+'<br/>'+
                                                                              'Summary: <a href="'+this.summary+'" >'+this.id+'</a>',
                                                             width: 'auto'
                                                         });

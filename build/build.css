@@ -75,7 +75,7 @@
 	background: black;
 }
 a.highslide-full-expand {
-   background: url(grunt-wpt-page/graphics/fullexpand.gif) no-repeat;
+   background: url(grunt-wpt-page/css/graphics/fullexpand.gif) no-repeat;
    display: block;
    margin: 0 10px 10px 0;
    width: 34px;
@@ -92,7 +92,7 @@ a.highslide-full-expand {
 	border: 1px solid white;
 	background-color: white;
 	padding-left: 22px;
-	background-image: url(grunt-wpt-page/graphics/loader.white.gif);
+	background-image: url(grunt-wpt-page/css/graphics/loader.white.gif);
 	background-repeat: no-repeat;
 	background-position: 3px 1px;
 }
@@ -136,7 +136,7 @@ a.highslide-credits:hover i {
 	width: 30px;
 	height: 30px;
 	cursor: pointer;
-	background: url(grunt-wpt-page/graphics/close.png);
+	background: url(grunt-wpt-page/css/graphics/close.png);
 	/* NOTE! For IE6, you also need to update the highslide-ie6.css file. */
 }
 
@@ -194,7 +194,7 @@ html>/**/body .highslide-gallery ul img {
 .highslide-controls {
 	width: 195px;
 	height: 40px;
-	background: url(grunt-wpt-page/graphics/controlbar-white.gif) 0 -90px no-repeat;
+	background: url(grunt-wpt-page/css/graphics/controlbar-white.gif) 0 -90px no-repeat;
 	margin: 20px 15px 10px 0;
 }
 .highslide-controls ul {
@@ -204,7 +204,7 @@ html>/**/body .highslide-gallery ul img {
 	list-style: none;
 	margin: 0;
 	padding: 0;
-	background: url(grunt-wpt-page/graphics/controlbar-white.gif) right -90px no-repeat;
+	background: url(grunt-wpt-page/css/graphics/controlbar-white.gif) right -90px no-repeat;
 
 }
 .highslide-controls li {
@@ -214,7 +214,7 @@ html>/**/body .highslide-gallery ul img {
 	list-style: none;
 }
 .highslide-controls a {
-	background-image: url(grunt-wpt-page/graphics/controlbar-white.gif);
+	background-image: url(grunt-wpt-page/css/graphics/controlbar-white.gif);
 	display: block;
 	float: left;
 	height: 30px;
@@ -341,7 +341,7 @@ html>/**/body .highslide-gallery ul img {
 	margin-top: 5px;
 	height: 11px;
 	width: 11px;
-	background: url(grunt-wpt-page/graphics/resize.gif) no-repeat;
+	background: url(grunt-wpt-page/css/graphics/resize.gif) no-repeat;
 }
 .highslide-footer .highslide-resize span {
 	display: none;
@@ -392,7 +392,7 @@ html>/**/body .highslide-gallery ul img {
 	display: block;
 	height: 16px;
 	width: 16px;
-	background-image: url(grunt-wpt-page/graphics/closeX.png);
+	background-image: url(grunt-wpt-page/css/graphics/closeX.png);
 }
 .draggable-header .highslide-header .highslide-close a:hover {
 	background-position: 0 16px;
@@ -506,7 +506,7 @@ html>/**/body .highslide-gallery ul img {
 .dark .highslide-controls,
 .dark .highslide-controls ul,
 .dark .highslide-controls a {
-	background-image: url(grunt-wpt-page/graphics/controlbar-black-border.gif);
+	background-image: url(grunt-wpt-page/css/graphics/controlbar-black-border.gif);
 }
 
 /* hs.wrapperClassName = 'floating-caption' */
@@ -528,7 +528,7 @@ html>/**/body .highslide-gallery ul img {
 	cursor: default;
 	padding: 0 0 0 22px;
 	margin: 0;
-	background: url(grunt-wpt-page/graphics/icon.gif) no-repeat 0 1px;
+	background: url(grunt-wpt-page/css/graphics/icon.gif) no-repeat 0 1px;
 }
 .controls-in-heading .highslide-controls {
 	width: 105px;
@@ -548,7 +548,7 @@ html>/**/body .highslide-gallery ul img {
 	padding: 0;
 }
 .controls-in-heading .highslide-controls a {
-	background-image: url(grunt-wpt-page/graphics/controlbar-white-small.gif);
+	background-image: url(grunt-wpt-page/css/graphics/controlbar-white-small.gif);
 	height: 20px;
 	width: 20px;
 }
@@ -628,7 +628,7 @@ html>/**/body .highslide-gallery ul img {
 	display: none;
 }
 .text-controls li {
-    background-image: url(grunt-wpt-page/graphics/controlbar-text-buttons.png);
+    background-image: url(grunt-wpt-page/css/graphics/controlbar-text-buttons.png);
 	background-position: right top !important;
 	padding: 0;
 	margin-left: 15px;
@@ -636,7 +636,7 @@ html>/**/body .highslide-gallery ul img {
 	width: auto;
 }
 .text-controls a {
-    background: url(grunt-wpt-page/graphics/controlbar-text-buttons.png) no-repeat;
+    background: url(grunt-wpt-page/css/graphics/controlbar-text-buttons.png) no-repeat;
     background-position: left top !important;
     position: relative;
     left: -10px;
@@ -646,7 +646,7 @@ html>/**/body .highslide-gallery ul img {
 	text-decoration: none !important;
 }
 .text-controls a span {
-	background: url(grunt-wpt-page/graphics/controlbar-text-buttons.png) no-repeat;
+	background: url(grunt-wpt-page/css/graphics/controlbar-text-buttons.png) no-repeat;
     margin: 1px 2px 1px 10px;
 	display: block;
     min-width: 4em;
@@ -773,7 +773,7 @@ html>/**/body .highslide-gallery ul img {
 .highslide-thumbstrip-horizontal .highslide-scroll-up div {
 	margin-bottom: 10px;
 	cursor: pointer;
-	background: url(grunt-wpt-page/graphics/scrollarrows.png) left center no-repeat;
+	background: url(grunt-wpt-page/css/graphics/scrollarrows.png) left center no-repeat;
 	height: 42px;
 }
 .highslide-thumbstrip-horizontal .highslide-scroll-down {
@@ -787,7 +787,7 @@ html>/**/body .highslide-gallery ul img {
 .highslide-thumbstrip-horizontal .highslide-scroll-down div {
 	margin-bottom: 10px;
 	cursor: pointer;
-	background: url(grunt-wpt-page/graphics/scrollarrows.png) center right no-repeat;
+	background: url(grunt-wpt-page/css/graphics/scrollarrows.png) center right no-repeat;
 	height: 42px;
 }
 .highslide-thumbstrip-horizontal table {
@@ -833,7 +833,7 @@ html>/**/body .highslide-gallery ul img {
 .highslide-thumbstrip-vertical .highslide-scroll-up div {
 	margin-left: 10px;
 	cursor: pointer;
-	background: url(grunt-wpt-page/graphics/scrollarrows.png) top center no-repeat;
+	background: url(grunt-wpt-page/css/graphics/scrollarrows.png) top center no-repeat;
 	height: 25px;
 }
 .highslide-thumbstrip-vertical .highslide-scroll-down {
@@ -847,7 +847,7 @@ html>/**/body .highslide-gallery ul img {
 .highslide-thumbstrip-vertical .highslide-scroll-down div {
 	margin-left: 10px;
 	cursor: pointer;
-	background: url(grunt-wpt-page/graphics/scrollarrows.png) bottom center no-repeat;
+	background: url(grunt-wpt-page/css/graphics/scrollarrows.png) bottom center no-repeat;
 	height: 25px;
 }
 .highslide-thumbstrip-vertical table {

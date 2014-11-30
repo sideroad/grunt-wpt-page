@@ -15,16 +15,16 @@
                                 name: data.labels[index],
                                 data: _.chain(data.data)
                                        .map(function(item){
-                                          if(!item[key]){
-                                            return false;
-                                          } else {
-                                              return {
-                                                x: item.date.getTime(),
-                                                y: Number(item[key]),
-                                                summary: item.summary,
-                                                id: item.id
-                                              };                                            
-                                          }
+                                           if(!item[key]){
+                                               return false;
+                                           } else {
+                                               return {
+                                                   x: item.date.getTime(),
+                                                   y: Number(item[key]),
+                                                   summary: item.summary,
+                                                   id: item.id
+                                              };
+                                           }
                                        })
                                        .compact()
                                        .sortBy('x')
@@ -35,7 +35,8 @@
             $("#"+data.element).html('')
                                .highcharts({
                                   chart: {
-                                    type: 'spline'
+                                    type: 'spline',
+                                    zoomType: 'x'
                                   },
                                   xAxis: {
                                     type: 'datetime'
@@ -65,6 +66,7 @@
                                                             },
                                                             headingText: this.series.name,
                                                             maincontentText: 'Date: '+new Date(this.x)+'<br/>'+
+                                                                             data.ytitle+': '+this.y+' '+data.valueSuffix+'<br/>'+
                                                                              'Summary: <a href="'+this.summary+'" >'+this.id+'</a>',
                                                             width: 'auto'
                                                         });
