@@ -215,12 +215,12 @@
                             <tr>
                                 <td>Document Complete</td>
                                 <td v-repeat="loadTimeResponseTimeComparizon" class="v-repeat-hack">{{$value}}</td>
-                                <td v-repeat="loadTimeResponseTimeComparizon">{{$value}}</td>
+                                <td v-repeat="loadTimeResponseTimeComparizon">{{$value | ms}}</td>
                             </tr>
                             <tr>
                                 <td>Fully Loaded</td>
                                 <td v-repeat="fullyLoadedResponseTimeComparizon" class="v-repeat-hack">{{$value}}</td>
-                                <td v-repeat="fullyLoadedResponseTimeComparizon">{{$value}}</td>
+                                <td v-repeat="fullyLoadedResponseTimeComparizon">{{$value | ms}}</td>
                             </tr>
                             <tr>
                                 <td>SpeedIndex</td>
@@ -230,7 +230,7 @@
                             <tr>
                                 <td>Contents Size</td>
                                 <td v-repeat="contentsSizeComparizon" class="v-repeat-hack">{{$value}}</td>
-                                <td v-repeat="contentsSizeComparizon">{{$value}}</td>
+                                <td v-repeat="contentsSizeComparizon">{{$value | KB}}</td>
                             </tr>
                             <tr>
                                 <td>Contents Request</td>
