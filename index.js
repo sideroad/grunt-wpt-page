@@ -278,9 +278,8 @@
                                       })
                             };
                         });
-
-                        that.renderComparizonResponseTimeGraph( tests, 'fullyLoaded' );
                         that.renderComparizonResponseTimeGraph( tests, 'loadTime' );
+                        that.renderComparizonResponseTimeGraph( tests, 'fullyLoaded' );
 
                         that.renderComparizonContentsSizeGraph( tests );
                         that.renderComparizonContentsRequestGraph( tests );
@@ -415,6 +414,17 @@
                     labels: _(this.urls).keys().value(),
                     element: key+'Graph'
                 });
+
+                this.$set(key+'ResponseTimeComparizon', _(this.urls).keys().map(function(key){
+                    var item = _(list).reduce(function(item, obj){
+                                 return {
+                                        sum: item.sum + (obj[key]||0),
+                                        length: obj[key] ? item.length+1 : item.length
+                                    };
+                               }, {sum: 0, length: 0});
+                    return Math.ceil( item.sum/item.length );
+                }).value());
+
             },
             renderComparizonSpeedIndexGraph: function(tests){
                 var statics = this.statics,
@@ -438,6 +448,17 @@
                     labels: _(this.urls).keys().value(),
                     element: 'speedIndexGraph'
                 });
+
+                this.$set('speedIndexComparizon', _(this.urls).keys().map(function(key){
+                    var item = _(list).reduce(function(item, obj){
+                                 return {
+                                        sum: item.sum + (obj[key]||0),
+                                        length: obj[key] ? item.length+1 : item.length
+                                    };
+                               }, {sum: 0, length: 0});
+                    return Math.ceil( item.sum/item.length );
+                }).value());
+
             },
             renderComparizonContentsSizeGraph: function(tests){
                 var view = this.view,
@@ -463,6 +484,16 @@
                     labels: _(this.urls).keys().value(),
                     element: 'contentsSizeGraph'
                 });
+
+                this.$set('contentsSizeComparizon', _(this.urls).keys().map(function(key){
+                    var item = _(list).reduce(function(item, obj){
+                                 return {
+                                        sum: item.sum + (obj[key]||0),
+                                        length: obj[key] ? item.length+1 : item.length
+                                    };
+                               }, {sum: 0, length: 0});
+                    return Math.ceil( item.sum/item.length );
+                }).value());
             },
             renderComparizonContentsRequestGraph: function(tests){
                 var view = this.view,
@@ -487,6 +518,16 @@
                     labels: _(this.urls).keys().value(),
                     element: 'contentsRequestsGraph'
                 });
+
+                this.$set('contentsRequestComparizon', _(this.urls).keys().map(function(key){
+                    var item = _(list).reduce(function(item, obj){
+                                 return {
+                                        sum: item.sum + (obj[key]||0),
+                                        length: obj[key] ? item.length+1 : item.length
+                                    };
+                               }, {sum: 0, length: 0});
+                    return Math.ceil( item.sum/item.length );
+                }).value());
             }       
 
         }

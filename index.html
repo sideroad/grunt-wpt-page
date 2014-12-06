@@ -201,6 +201,46 @@
                     </table>
                 </div>
 
+                <div v-show="comparizon">
+                    <h3>Average</h3>
+                    <table class="table table-striped table-bordered">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th v-repeat="urls | keys" class="v-repeat-hack">{{$value}}</th>
+                                <th v-repeat="urls | keys">{{$value}}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="averageTable">
+                            <tr>
+                                <td>Document Complete</td>
+                                <td v-repeat="loadTimeResponseTimeComparizon" class="v-repeat-hack">{{$value}}</td>
+                                <td v-repeat="loadTimeResponseTimeComparizon">{{$value}}</td>
+                            </tr>
+                            <tr>
+                                <td>Fully Loaded</td>
+                                <td v-repeat="fullyLoadedResponseTimeComparizon" class="v-repeat-hack">{{$value}}</td>
+                                <td v-repeat="fullyLoadedResponseTimeComparizon">{{$value}}</td>
+                            </tr>
+                            <tr>
+                                <td>SpeedIndex</td>
+                                <td v-repeat="speedIndexComparizon" class="v-repeat-hack">{{$value}}</td>
+                                <td v-repeat="speedIndexComparizon">{{$value}}</td>
+                            </tr>
+                            <tr>
+                                <td>Contents Size</td>
+                                <td v-repeat="contentsSizeComparizon" class="v-repeat-hack">{{$value}}</td>
+                                <td v-repeat="contentsSizeComparizon">{{$value}}</td>
+                            </tr>
+                            <tr>
+                                <td>Contents Request</td>
+                                <td v-repeat="contentsRequestComparizon" class="v-repeat-hack">{{$value}}</td>
+                                <td v-repeat="contentsRequestComparizon">{{$value}}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
             </div>
         </div>
     </div>
