@@ -1,4 +1,4 @@
-/*global data_graphic, Q, jQuery, hs, Highcharts */
+/*global data_graphic, Q, jQuery, hs, Highcharts, localStorage */
 
 (function( Q, $, hs, Highcharts ){
     'use strict';
@@ -8,7 +8,7 @@
         moment = require('moment'),
         bootstrap = require('components-bootstrap'),
         Vue = require('vue'),
-        cached = {},
+        cached = JSON.parse(localStorage.tests || '{}'),
         renderGraph = function(data){
             var series = _.map( data.keys, function(key, index){
                             return {
@@ -263,7 +263,10 @@
                     requests.push(dfd.promise);
                 });
 
-                return Q.all(requests);
+                return Q.all(requests).then(function(tests){
+                  localStorage.tests = JSON.stringify(cached);
+                  return tests;
+                });
             },
             renderGraphs: function(){
                 var that = this;
